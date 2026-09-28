@@ -650,34 +650,6 @@ async function fetchTurnFromClist(){
   return{avgTurn:null};
 }
 
-/* 沪深市场日度成交数据 — 东财宏观数据中心
-   用于：近7日成交额序列、250日均量（成交额/ma250）
-   RPT_MUTUAL_MARKET_SH 或 RPT_MARKET_TURNOVER:
-   TRADE_DATE, MARKET_TURNOVER(成交额亿元), EXCHANGE_RATE(换手率%) */
-/* 拉沪+深历史 K 线，合并成交额 → [{date,label,close,amtYuan,turn}, ...]
-   走 proxy /index_kline (新浪源稳定，amt 字段已经过经验系数校准) */
-async function fetchKline(secid, lmt){
-  try{
-    const [rSH,rSZ]=await Promise.all([
-      fetch(`http://localhost:8899/index_kline?code=sh000001&days=${lmt}`,{cache:'no-cache'}),
-      fetch(`http://localhost:8899/index_kline?code=sz399001&days=${lmt}`,{cache:'no-cache'}),
-    ]);
-    if(!rSH.ok||!rSZ.ok)return[];
-    const [kSH,kSZ]=await Promise.all([rSH.json(),rSZ.json()]);
-    const szMap={};
-    for(const k of kSZ)szMap[k.d]=k.amt||0;
-    return kSH.map(k=>{
-      const parts=k.d.split('-');
-      return{
-        date:k.d,
-        label:parseInt(parts[1])+'/'+parseInt(parts[2]),
-        close:k.close||0,
-        amtYuan:(k.amt||0)+(szMap[k.d]||0),
-        turn:0,  // 新浪源不提供换手率，用 fetchTurnFromClist 实时获取
-      };
-    }).filter(x=>x.amtYuan>1e11);
-  }catch(e){return[];}
-}
 /* 27 申万一级行业 + 60日累计涨跌（基于日 K 线收盘价）
    Proxy /sectors 端点处理批量并行拉K线、计算涨跌、缓存30分钟
    返回：[{code,name,today,ret60,date}, ...] 已按 ret60 降序排好 */
@@ -749,18 +721,6 @@ async function fetchBondKline(lmt){
   return[];
 }
 
-/* 沪深300指数现价 → /index_kline (新浪源最新收盘价) */
-async function fetchMarketOverview(){
-  try{
-    const r=await fetch('http://localhost:8899/index_kline?code=sh000300&days=2',{cache:'no-cache'});
-    if(!r.ok)return{};
-    const arr=await r.json();
-    if(arr.length<2)return{};
-    const today=arr[arr.length-1],prev=arr[arr.length-2];
-    return{hs300:today.close,hs300_pct:+((today.close/prev.close-1)*100).toFixed(2)};
-  }catch(e){return{};}
-}
-
 /* 两融余额 — AKShare /margin (SSE+SZSE 合计，亿元) */
 let _marginDataP=null;
 function fetchMarginData(){
@@ -803,12 +763,7 @@ async function fetchMarginKline(){
    f39=流通份额(万份)  f2=现价  f57=近20日份额变化 */
 /* ETF 资金分类流向 — proxy /etf_categories（一年同比，验证资金轮换） */
 async function fetchETFCategories(){
-  // 主路径：proxy /etf_categories（若代理实现了该实时路由）
-  try{
-    const r=await fetch('http://localhost:8899/etf_categories',{cache:'no-cache'});
-    if(r.ok){const w=await r.json();if(valOf(w)?.categories?.length)return w;}
-  }catch(e){}
-  // 兜底：日更 arisk_data.json 的 etf_categories 字段（update_arisk_data.py 每日生成）
+  // 读日更 arisk_data.json 的 etf_categories 字段（update_arisk_data.py 每日生成；proxy 无实时路由）
   try{
     if(valOf(_prebuiltData?.etf_categories)?.categories)return _prebuiltData.etf_categories;
     const pb=await loadPrebuiltJSON();
@@ -853,17 +808,6 @@ async function fetchIV300(){ return null; }
    期权IV当日值仍从 fetchIV300() 实时获取，5年分位数回退到静态估算值(65%) */
 async function fetchIVKline(){ return []; }
 
-/* HS300历史收盘价 — proxy /index_kline (新浪源)，用于 HV30 计算 */
-async function fetchHS300PriceKline(days=40){
-  try{
-    const r=await fetch(`http://localhost:8899/index_kline?code=sh000300&days=${days}`,{cache:'no-cache'});
-    if(!r.ok)return null;
-    const arr=await r.json();
-    const closes=arr.map(k=>k.close).filter(v=>v>0);
-    return closes.length>=31?closes:null;
-  }catch(e){return null;}
-}
-
 /* 30日年化历史波动率 = std(ln(Pt/Pt-1), 30日) × √252 × 100 */
 function computeHV30(prices){
   if(!prices||prices.length<31)return null;
@@ -875,7 +819,9 @@ function computeHV30(prices){
   return parseFloat((Math.sqrt(variance)*Math.sqrt(252)*100).toFixed(1));
 }
 
-/* 东方财富妙想API（需proxy.py运行且设置MX_APIKEY环境变量） */
+/* 东方财富妙想API（需proxy.py运行且设置MX_APIKEY环境变量）。
+   仅保留给盘中手动查询用（如控制台 fetchMX('…').then(parseMXMonthly)）；
+   面板数据统一由 update_arisk_data.py 拉取，社融降级链里的妙想也在脚本中实现。 */
 async function fetchMX(query){
   try{
     const r=await fetch('http://localhost:8899/mx',{
@@ -944,17 +890,16 @@ async function fetchAll(force){
   const _bondKlineP=Promise.race([fetchBondKline(30),new Promise((_,rej)=>setTimeout(rej,10000))]).catch(()=>[]);
 
   // 用 Promise.allSettled，单个失败不影响其他
-  let peW=null,bondW=null,bondYield=null,bondKlines=[],overview={},
+  let peW=null,bondW=null,bondYield=null,bondKlines=[],
       marginBal=null,marginKlines=[],sfW=null,sfDataLive=null;
   const _settled2=await Promise.allSettled([
     fetchIndexValuation(),
     fetchBondYield(),
-    fetchMarketOverview(),
     fetchSFData(),
   ]);
   const _v=i=>_settled2[i].status==='fulfilled'?_settled2[i].value:null;
-  peW=_v(0);bondW=_v(1);bondYield=valOf(bondW)?.latest||null;overview=_v(2)||{};
-  sfW=_v(3);sfDataLive=valOf(sfW);
+  peW=_v(0);bondW=_v(1);bondYield=valOf(bondW)?.latest||null;
+  sfW=_v(2);sfDataLive=valOf(sfW);
   bondKlines=await _bondKlineP;
 
   // 两融后台并发启动（不阻塞 [3/6]，避免 25s 卡顿）
@@ -970,27 +915,15 @@ async function fetchAll(force){
     fetchSectorLive(),         // /sectors AKShare 申万一级
     fetchIV300(),              // 已废弃，返回 null
     fetchIVKline(),            // 硬编码空
-    fetchHS300PriceKline(40),  // /index_kline 新浪 HS300 收盘价
   ]);
   const _w=i=>_settled3[i].status==='fulfilled'?_settled3[i].value:null;
   turnResult=_w(0)||{avgTurn:null};
-  sectorW=_w(1);sectorLive=valOf(sectorW)||[];ivResult=_w(2);ivKlines=_w(3)||[];hs300Prices=_w(4);
+  sectorW=_w(1);sectorLive=valOf(sectorW)||[];ivResult=_w(2);ivKlines=_w(3)||[];
   // 换手率：预构建 JSON（沪深交易所真实值）> 实时接口
   const prebuiltTurn=P('turnover')?.avg_pct;
   avgTurn=prebuiltTurn||turnResult.avgTurn;
 
-  // ── MX API 二次补充（sfData / fundIssuance 主接口为空时） ──────────
-  if((!sfDataLive||sfDataLive.length<4)&&!P('credit_yoy')){
-    try{
-      const mxSF=await Promise.race([fetchMX('社融存量同比增速最近12个月'),new Promise((_,rej)=>setTimeout(rej,8000))]);
-      if(mxSF){const parsed=parseMXMonthly(mxSF);if(parsed&&parsed.length>=4){
-        sfDataLive=parsed;
-        sfW={value:parsed,source:'妙想',date:'20'+parsed[parsed.length-1].m,is_estimate:false,stale:false};
-      }}
-    }catch(e){}
-  }
-  setL('拉取历史K线（上证）...','[3/5]');
-  try{shKlines=await Promise.race([fetchKline('1.000001',260),new Promise((_,rej)=>setTimeout(rej,5000))]);}catch(e){shKlines=[];}
+  setL('汇总两融...','[3/5]');
 
   // 收集两融结果（[3/6]+[4/6] 已耗约 5-17s，margin 大概率已就绪）
   if(!marginKlines||marginKlines.length<3){
@@ -1073,7 +1006,7 @@ async function fetchAll(force){
   }
 
   // ── 5. 沪深300 ────────────────────────────────────────────
-  const hs300Now = overview.hs300 || st.hs300;
+  const hs300Now = st.hs300;
 
   // ── 6. ETF份额 ────────────────────────────────────────────
 

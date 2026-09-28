@@ -89,7 +89,8 @@ def _bond_col(df):
 # ── 1. 社融存量同比 ──────────────────────────────────────────
 # 主源：央行（PBoC）官网『社会融资规模存量统计表』，其“增速（%）”列即社融存量同比。
 #       央行口径、最权威，每月约15日发布上月数据，比商务部镜像（AKShare shrzgm）更及时。
-# 回退：① 商务部镜像增量累计（旧法，口径偏高约1pp且滞后）② M2 同比（IC≈0，占位）。
+# 回退：① 东财妙想（可选，需 MX_APIKEY）② 商务部镜像增量累计（旧法，口径偏高约1pp且滞后）
+#       ③ M2 同比（IC≈0，占位）。每一级都写入对应的 source。
 TSF_BASELINE_201412 = 1228600   # 122.86 万亿 = 1,228,600 亿（央行 2015-01 货政报告，旧法基准）
 
 PBOC_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -151,6 +152,41 @@ def _ym(m):
     """'26-08' → '2026-08'"""
     return f"20{m[:2]}-{m[3:5]}"
 
+# 东财妙想（可选，需 MX_APIKEY）：与 proxy.py /mx 相同的接口与请求体，
+# 解析逻辑与页面原 parseMXMonthly 一致（dataTableDTOList[0].table 的 headName + 首个指标列）。
+MX_URL = "https://mkapi2.dfcfs.com/finskillshub/api/claw/query"
+
+def mx_query(query):
+    import requests
+    r = requests.post(MX_URL, json={"toolQuery": query},
+                      headers={"Content-Type": "application/json", "apikey": MX_KEY}, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+def parse_mx_monthly(result):
+    """妙想查询结果 → [{'m':'YY-MM','g':同比,'s':'mx'}]（按月升序，去重）"""
+    dto_list = (((result or {}).get('data') or {}).get('data') or {}) \
+        .get('searchDataResultDTO', {}).get('dataTableDTOList') or []
+    if not dto_list:
+        return []
+    dto = dto_list[0]
+    table = dto.get('table') or {}
+    heads = table.get('headName') or []
+    order = dto.get('indicatorOrder') or []
+    key = str(order[0]) if order else next((k for k in table if k != 'headName'), '')
+    vals = table.get(key) or []
+    out = {}
+    for h, v in zip(heads, vals):
+        raw = str(h)[:10]
+        try:
+            y, m = int(raw[:4]), int(raw[5:7])
+            g = float(v)
+        except Exception:
+            continue
+        if 0 < g < 30:
+            out[f"{str(y)[2:]}-{m:02d}"] = {"m": f"{str(y)[2:]}-{m:02d}", "g": round(g, 2), "s": "mx"}
+    return [out[k] for k in sorted(out)]
+
 def fetch_credit_yoy():
     # ── 主源：央行官方社融存量同比（最权威、最及时）──
     try:
@@ -168,7 +204,19 @@ def fetch_credit_yoy():
     except Exception as e:
         log(f"  ✗ PBoC 社融存量同比 失败: {e}")
         traceback.print_exc()
-    # ── 回退1：商务部镜像 社融增量累计（旧法，口径偏高约1pp且滞后）──
+    # ── 回退1：东财妙想（仅当配置了 MX_APIKEY）──
+    if MX_KEY:
+        try:
+            rows = parse_mx_monthly(mx_query('社融存量同比增速最近12个月'))
+            if len(rows) >= 6:
+                log(f"  ⚠ 社融存量同比[回退·妙想] ({len(rows)} 月) 最新 {rows[-1]}")
+                return field(rows[-12:], '妙想', _ym(rows[-1]['m']))
+            log(f"  ✗ 妙想 社融存量同比 点数不足: {len(rows)} 月")
+        except Exception as e:
+            log(f"  ✗ 妙想 社融存量同比 失败: {e}")
+    else:
+        log("  · 妙想 MX_APIKEY 未配置，跳过")
+    # ── 回退2：商务部镜像 社融增量累计（旧法，口径偏高约1pp且滞后）──
     try:
         import akshare as ak
         df = ak.macro_china_shrzgm()
@@ -661,15 +709,36 @@ def _sse_find_valid(anchor, back_days):
         cur -= timedelta(days=1)
     return None, None
 
+def _etf_prices():
+    """ETF 现价 {6位代码: 价格}, 来源名。东财 fund_etf_spot_em 为主，失败时用新浪
+    fund_etf_category_sina（列：代码/名称/最新价…，代码带 sh/sz 前缀，取后 6 位）。"""
+    import akshare as ak
+    def _collect(df):
+        out = {}
+        for code, p in zip(df['代码'].astype(str), df['最新价']):
+            try: p = float(p)
+            except Exception: continue
+            if p > 0: out[code[-6:]] = p
+        return out
+    try:
+        price = _collect(ak.fund_etf_spot_em())
+        if len(price) > 100:
+            return price, '东财'
+        log(f"  · 东财 ETF 现价仅 {len(price)} 只，改用新浪")
+    except Exception as e:
+        log(f"  · 东财 ETF 现价失败，改用新浪: {e}")
+    price = _collect(ak.fund_etf_category_sina(symbol="ETF基金"))
+    if len(price) <= 100:
+        raise RuntimeError(f"新浪 ETF 现价也不可用（{len(price)} 只）")
+    return price, '新浪'
+
 def fetch_etf_categories():
     try:
         import akshare as ak
         from datetime import timedelta
         from collections import defaultdict
-        # 现价
-        spot = ak.fund_etf_spot_em()
-        price = {str(r['代码']): float(r['最新价']) for _, r in spot.iterrows()
-                 if r['最新价'] and float(r['最新价']) > 0}
+        # 现价（东财 → 新浪）
+        price, price_src = _etf_prices()
         # 最新 + 约60交易日前 两个份额快照
         df_now, date_now = _sse_find_valid(datetime.now(), 8)
         if df_now is None:
@@ -704,20 +773,44 @@ def fetch_etf_categories():
         cats.sort(key=lambda x: x["change_yi"], reverse=True)
         total = sum(c["scale_yi"] for c in cats) or 1
         other = next((c["scale_yi"] for c in cats if c["category"] == "其他"), 0)
-        log(f"  ✓ etf_categories now={date_now} vs {date_old} "
+        log(f"  ✓ etf_categories now={date_now} vs {date_old} 现价={price_src} "
             f"{len(cats)}类/{sum(c['count_now'] for c in cats)}只，其他占比 {other/total*100:.1f}%")
-        return field({"latest_date": date_now, "prev_date": date_old, "categories": cats},
-                     '上交所份额×东财现价', date_now)
+        return field({"latest_date": date_now, "prev_date": date_old, "price_source": price_src,
+                      "categories": cats},
+                     f'上交所份额×{price_src}现价', date_now,
+                     note='旧份额按当前价格计值：反映份额变化带来的资金进出，不含价格涨跌')
     except Exception as e:
         log(f"  ✗ etf_categories 失败: {e}")
         traceback.print_exc()
         return fallback('etf_categories')
 
+# ── 单段超时保护 ─────────────────────────────────────────────
+# AKShare 多数接口不带超时，东财偶发"连上但不返回"会让整次更新无限挂起
+# （实测 stock_zt_pool_em 卡住 >13 分钟，launchd 下一小时再叠一个进程）。
+# 每段放进守护线程跑，超出预算即放弃（线程随进程退出），该字段走 fallback → stale。
+SECTION_TIMEOUT = int(os.environ.get('ARISK_SECTION_TIMEOUT', '180'))
+
+def run_section(key, fn, timeout=SECTION_TIMEOUT):
+    import threading
+    box = {}
+    def _run():
+        try: box['v'] = fn()
+        except Exception as e: box['e'] = e
+    t = threading.Thread(target=_run, daemon=True)
+    t.start(); t.join(timeout)
+    if t.is_alive():
+        log(f"  ✗ {key} 超过 {timeout}s 未返回，放弃本段")
+        return fallback(key)
+    if 'e' in box:
+        log(f"  ✗ {key} 未捕获异常: {box['e']}")
+        return fallback(key)
+    return box['v']
+
 # ── 主流程 ────────────────────────────────────────────────
 def main():
     t0 = time.time()
     log("=== update_arisk_data.py 开始 ===")
-    log(f"  MX_APIKEY: {'已配置' if MX_KEY else '未配置（仅 AKShare 回退）'}")
+    log(f"  MX_APIKEY: {'已配置（社融降级链启用妙想）' if MX_KEY else '未配置，社融降级链跳过妙想'}")
 
     out = {
         "generated_at": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
@@ -725,31 +818,31 @@ def main():
     }
 
     log("[1/13] 抓 社融存量同比 ...")
-    out['credit_yoy'] = fetch_credit_yoy()
+    out['credit_yoy'] = run_section('credit_yoy', fetch_credit_yoy)
     log("[2/13] 抓 10Y 国债 ...")
-    out['bond10y'] = fetch_bond10y()
+    out['bond10y'] = run_section('bond10y', fetch_bond10y)
     log("[3/13] 抓 沪深300 PE ...")
-    out['pe_300'] = fetch_pe_300()
+    out['pe_300'] = run_section('pe_300', fetch_pe_300)
     log("[4/13] 算 ERP 近5年真实分位 ...")
-    out['erp_history'] = fetch_erp_history()
+    out['erp_history'] = run_section('erp_history', fetch_erp_history)
     log("[5/13] 抓 破净率 ...")
-    out['below_net_asset'] = fetch_below_net_asset()
+    out['below_net_asset'] = run_section('below_net_asset', fetch_below_net_asset)
     log("[6/13] 算 HV30 ...")
-    out['hv30'] = fetch_hv30()
+    out['hv30'] = run_section('hv30', fetch_hv30)
     log("[7/13] 抓 两融 ...")
-    out['margin'] = fetch_margin()
+    out['margin'] = run_section('margin', fetch_margin)
     log("[8/13] 抓 全A 换手率 / 成交额（交易所）...")
-    out['turnover'] = fetch_turnover()
+    out['turnover'] = run_section('turnover', fetch_turnover)
     log("[9/13] 整理 近7日成交额 ...")
-    out['vol_7d'] = fetch_vol_7d(out['turnover'])
+    out['vol_7d'] = run_section('vol_7d', lambda: fetch_vol_7d(out['turnover']))
     log("[10/13] 抓 近5日涨跌停 ...")
-    out['limit_7d'] = fetch_limit_7d()
+    out['limit_7d'] = run_section('limit_7d', fetch_limit_7d)
     log("[11/13] 抓 申万31行业60日 ...")
-    out['sector_live'] = fetch_sector_live()
+    out['sector_live'] = run_section('sector_live', fetch_sector_live)
     log("[12/13] 抓 偏股基金新发 ...")
-    out['fund_issuance'] = fetch_fund_issuance()
+    out['fund_issuance'] = run_section('fund_issuance', fetch_fund_issuance)
     log("[13/13] 抓 ETF 资金分类流向（沪市60日）...")
-    out['etf_categories'] = fetch_etf_categories()
+    out['etf_categories'] = run_section('etf_categories', fetch_etf_categories)
 
     fields = {k: v for k, v in out.items() if _is_wrapped(v)}
     missing = [k for k, v in fields.items() if v['value'] is None]
