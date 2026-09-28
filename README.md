@@ -58,9 +58,10 @@
 
 ## 快速开始
 
+拿到的是安装包（zip）就先解压；从 GitHub 获取则 `git clone https://github.com/zhysh3/a-share-monitor.git arisk`。
+
 ```bash
-git clone <你的仓库地址> arisk
-cd arisk
+cd arisk          # 解压 / clone 出来的目录
 
 # 1. 建虚拟环境 + 装依赖（需 Python 3.9+）
 python3 -m venv venv
@@ -70,7 +71,7 @@ python3 -m venv venv
 cp .env.example .env
 #   然后编辑 .env 填入 MX_APIKEY
 
-# 3. 首次抓数
+# 3. 首次抓数（约 2–3 分钟；个别数据源暂时不可用时会复用旧值并在面板标红提示，属正常）
 ./venv/bin/python update_arisk_data.py
 
 # 4. 启动并打开看板
