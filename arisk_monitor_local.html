@@ -473,7 +473,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
 const $=id=>document.getElementById(id);
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';
-const CKEY='arisk_v18',CTTL=6*3600*1000;
+const CKEY='arisk_v19',CTTL=6*3600*1000;
 // 缓存带数据版本戳 gen（=预构建 JSON 的 generated_at）。
 // loadC 时若与当前 _prebuiltData 的 generated_at 不一致，视为过期 → 强制重拉。
 // 这样后台 cron 一更新 JSON，前端下次加载就自动丢弃旧缓存，无需手动 localStorage.clear()。
@@ -517,13 +517,15 @@ function staleText(m){
   return m.date?'⚠ 数据停留在 '+m.date:'⚠ 无可用数据（静态占位值）';
 }
 /* 数据日期是否已过旧（按自然日粗判，覆盖周末+1天假期；长假期间会如实提示"停留在节前"）：
-   日频 >4 天；社融（月频，次月中旬发布）数据月份距今 >80 天 */
+   日频 >4 天（两融为 T+1 发布，>5 天）；社融（月频，次月中旬发布）数据月份距今 >80 天 */
+const T1_META_KEYS=['margin'];   // 两融为交易所次日发布；ETF 份额当天发布（时间不固定），按普通日频判断
 const DAILY_META_KEYS=['pe_300','bond10y','erp_history','below_net_asset','vol_7d','turnover','hv30','margin','sector_live','etf_categories'];
 function isAged(k,m){
   if(!m||!m.date)return false;
   const t=new Date(m.date.length===7?m.date+'-01':m.date).getTime();
   if(isNaN(t))return false;
   const days=(Date.now()-t)/864e5;
+  if(T1_META_KEYS.includes(k))return days>5;   // T+1 发布：两融、ETF 份额
   if(DAILY_META_KEYS.includes(k))return days>4;
   if(k==='credit_yoy')return days>80;
   return false;
@@ -560,7 +562,8 @@ function renderMeta(meta){
     const est=ms.some(m=>m.is_estimate),stale=keys.some((k,i)=>isStaleMeta(k,ms[i]));
     const src=[...new Set(ms.map(m=>m.source||'无数据'))].join('+');
     const dates=ms.map(m=>m.date).filter(Boolean).sort();
-    el.textContent=src+(dates.length?' · '+fmtDate(dates[0]):'')+(est?' · 估算':'');
+    const t1=keys.some(k=>T1_META_KEYS.includes(k));   // 次日发布的字段：最新可得即上一交易日，明示以免误读
+    el.textContent=src+(dates.length?' · '+fmtDate(dates[0]):'')+(t1?'（次日发布）':'')+(est?' · 估算':'');
     el.className='vbadge '+(stale?'vb-stale':est?'vb-est':'vb-ok');
     el.title=ms.map((m,i)=>(keys.length>1?META_LABEL[keys[i]]+'：':'')+(m.source||'无数据')+(m.date?' '+m.date:'')+(m.note?'（'+m.note+'）':'')).join('\n');
     let note=el._staleNote;
@@ -890,7 +893,7 @@ async function fetchAll(force){
   setL('获取估值/国债/沪深300/ETF/社融...','[1/5]');
 
   // 用 Promise.allSettled，单个失败不影响其他
-  let peW=null,bondW=null,bondYield=null,bondKlines=[],
+  let peW=null,bondW=null,bondYield=null,bondKlines=[],bondHist=null,bondHistLabels=null,
       marginBal=null,marginKlines=[],sfW=null,sfDataLive=null;
   const _settled2=await Promise.allSettled([
     fetchIndexValuation(),
@@ -933,15 +936,6 @@ async function fetchAll(force){
 
   // ETF 资金分类流向的拉取+渲染已统一移到 apply()，覆盖缓存/实时两条路径（见 apply）
 
-  // ── 1. 国债K线历史 → BOND_HIST ──────────────────────────────
-  // 用真实K线替换静态BOND_HIST数组；至少需要5根才有意义
-  if(bondKlines&&bondKlines.length>=5){
-    const closes=bondKlines.map(k=>k.close).filter(v=>v>0&&v<20);
-    if(closes.length>=5){
-      // 覆盖全局 BOND_HIST（渲染时会重新读取）
-      window._BOND_HIST_LIVE=closes;
-    }
-  }
   // 今日收益率：优先实时接口，其次K线最后一根
   let bondNow=bondYield
     ||(bondKlines.length?bondKlines[bondKlines.length-1].close:null)
@@ -1158,8 +1152,8 @@ async function fetchAll(force){
         useMeta('bond10y',PM('bond10y'));
       }
       if(pbBond.hist&&pbBond.hist.length>=5){
-        window._BOND_HIST_LIVE=pbBond.hist.map(x=>x.v);
-        window._BOND_HIST_LABELS=pbBond.hist.map(x=>x.d);
+        bondHist=pbBond.hist.map(x=>x.v);
+        bondHistLabels=pbBond.hist.map(x=>x.d);
       }
     }
     // 社融存量同比 → 一阶导信号（M2 数据作为口径近似回退，AKShare 与央行口径偏差约1pp，
@@ -1188,7 +1182,7 @@ async function fetchAll(force){
   return{
     ...st,
     // 覆盖所有可实时化的字段
-    pe300:peNow, bond10y:bondNow,
+    pe300:peNow, bond10y:bondNow, bondHist, bondHistLabels,
     pbRatio:pbRatioNow, pbSeries:belowNet?.series||[], pbPct5y:belowNet?.pct5y??null,
     pbCount:belowNet?.count??null, pbTotal:belowNet?.total??null,
     erpHist,
@@ -1249,11 +1243,11 @@ function renderVolChart(d){
 }
 
 let _bondChart=null;
-function renderBondTrendChart(cur){
+function renderBondTrendChart(cur,d){
   if(typeof cur!=='number'||isNaN(cur))return;
   // 走势用预构建的日序列（最后一点即最新数据日、未取整）。不再追加取整后的 cur：
   // 旧逻辑会把同一天画两次，「日变化」变成取整误差（如 1.67−1.6738）。无序列时不画静态假数据。
-  const hist=window._BOND_HIST_LIVE||[];
+  const hist=(d&&d.bondHist)||[];
   if(hist.length<6){
     const set0=(id,txt)=>{const e=$(id);if(e)e.textContent=txt;};
     set0('bond-big',cur.toFixed(2)+'%');['bond-delta-badge','bond-d1','bond-w1','bond-ma5'].forEach(id=>set0(id,'--'));
@@ -1263,7 +1257,7 @@ function renderBondTrendChart(cur){
   }
   const data=hist.slice(-20);
   cur=data[data.length-1];
-  const hl=(window._BOND_HIST_LABELS||[]).slice(-20);
+  const hl=((d&&d.bondHistLabels)||[]).slice(-20);
   const labels=data.map((_,i)=>hl[i]||(i===data.length-1?'最新':-(data.length-1-i)+'d'));
   const ma5=data.slice(-5).reduce((a,b)=>a+b,0)/5;
   const slope=+(cur-ma5).toFixed(3),d1=+(cur-data[data.length-2]).toFixed(4),w1=+(cur-data[Math.max(0,data.length-6)]).toFixed(4);
@@ -1842,7 +1836,7 @@ function render(d){
   }
   if(d.sectors)renderHeatmap(d.sectors);
   requestAnimationFrame(()=>{
-    renderVolChart(d);renderBondTrendChart(bd);renderCreditChart(d);renderMarginChart(d);
+    renderVolChart(d);renderBondTrendChart(bd,d);renderCreditChart(d);renderMarginChart(d);
     renderDecisionModel(d);
   });
 }

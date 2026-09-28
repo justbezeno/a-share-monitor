@@ -4,7 +4,8 @@
 #
 # 判据是「数据里的日期」而不是「文件修改时间」。检查所有日频字段的 date / stale：
 #   成交额/换手率(turnover, vol_7d)、ETF(etf_categories)、行业(sector_live)、
-#   HV30(hv30)、PE(pe_300)、两融(margin)
+#   HV30(hv30)、PE(pe_300)、10Y国债(bond10y)、破净率(below_net_asset)、两融(margin)
+#   其中两融为 T+1 发布，只要求到上一个交易日
 #   1. JSON 不存在                                   → 更新
 #   2. 任一日频字段 date 落后于"应有的最新交易日"      → 更新
 #   3. 任一日频字段 stale=true（上次抓取失败复用旧值） → 更新
@@ -23,12 +24,16 @@ NONTRADING="$DIR/.arisk_nontrading_dates"
 UPDATER="$DIR/run_arisk_update.sh"
 PY="$DIR/venv/bin/python"
 
-DAILY_FIELDS="turnover vol_7d etf_categories sector_live hv30 pe_300 margin"
+DAILY_FIELDS="turnover vol_7d etf_categories sector_live hv30 pe_300 bond10y below_net_asset margin"
+# T+1 发布的字段：两融（交易所次日早上发布），只要求到"上一个交易日"。
+# 注：ETF 份额是当天发布、只是时间不固定（历史上 16:26~22:11 都有），不属于 T+1。
+T1_FIELDS="margin"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
+# expected_date [back]：应有的最新交易日；back=1 时返回它的上一个交易日
 expected_date() {
-    "$PY" - "$NONTRADING" <<'PY'
+    "$PY" - "$NONTRADING" "${1:-0}" <<'PY'
 import sys, datetime
 try:
     skip = {l.strip() for l in open(sys.argv[1]) if l.strip()}
@@ -38,10 +43,15 @@ now = datetime.datetime.now()
 d = now.date()
 if now.hour < 18:                              # 收盘+发布缓冲之前，今天还不该有数据
     d -= datetime.timedelta(days=1)
-for _ in range(30):
-    if d.weekday() < 5 and d.isoformat() not in skip:
-        break
-    d -= datetime.timedelta(days=1)
+def last_trading(d):
+    for _ in range(30):
+        if d.weekday() < 5 and d.isoformat() not in skip:
+            return d
+        d -= datetime.timedelta(days=1)
+    return d
+d = last_trading(d)
+for _ in range(int(sys.argv[2])):
+    d = last_trading(d - datetime.timedelta(days=1))
 print(d.isoformat())
 PY
 }
@@ -57,11 +67,12 @@ except Exception:
 PY
 }
 
-# 列出落后于 $1 或 stale 的日频字段，每行一个「字段(日期[,stale])」；全部到位则无输出
+# 列出落后或 stale 的日频字段，每行一个「字段(日期[,stale])」；全部到位则无输出
+# $1 = 应有交易日；$2 = 上一个交易日（T+1 字段的要求）
 lagging_fields() {
-    "$PY" - "$JSON" "$1" $DAILY_FIELDS <<'PY'
+    "$PY" - "$JSON" "$1" "$2" "$T1_FIELDS" $DAILY_FIELDS <<'PY'
 import sys, json
-path, exp, keys = sys.argv[1], sys.argv[2], sys.argv[3:]
+path, exp, exp_prev, t1, keys = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4].split(), sys.argv[5:]
 try:
     d = json.load(open(path))
 except Exception:
@@ -69,7 +80,8 @@ except Exception:
 for k in keys:
     f = d.get(k) or {}
     date, stale = f.get('date') or '', bool(f.get('stale'))
-    if not date or date < exp or stale:
+    need = exp_prev if k in t1 else exp
+    if not date or date < need or stale:
         print(f"{k}({date or '缺失'}{',stale' if stale else ''})")
 PY
 }
@@ -80,7 +92,8 @@ if [ ! -f "$JSON" ]; then
 fi
 
 EXP=$(expected_date)
-LAG=$(lagging_fields "$EXP" | tr '\n' ' ')
+EXP_PREV=$(expected_date 1)
+LAG=$(lagging_fields "$EXP" "$EXP_PREV" | tr '\n' ' ')
 
 if [ -z "$LAG" ]; then
     log "check: skip — 日频字段均已覆盖应有交易日 $EXP 且无 stale"
@@ -106,7 +119,7 @@ if [ -n "$NEW" ] && [[ "$NEW" < "$EXP" ]]; then
         log "check: 更新后交易所数据日期仍为 $NEW，$EXP 就是今天，判定为数据源尚未发布，下小时重试（不拉黑）"
     fi
 else
-    LAG=$(lagging_fields "$EXP" | tr '\n' ' ')
+    LAG=$(lagging_fields "$EXP" "$EXP_PREV" | tr '\n' ' ')
     if [ -n "$LAG" ]; then
         log "check: 更新完成，仍落后或 stale：${LAG}（数据源可能尚未发布，下小时重试）"
     else

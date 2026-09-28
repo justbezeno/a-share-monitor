@@ -918,6 +918,11 @@ def main():
         json.dump(out, f, ensure_ascii=False, indent=2)
     os.replace(tmp, OUT_PATH)
     log(f"=== 完成（{time.time()-t0:.1f}s），输出 {OUT_PATH} ===")
+    # 数据已落盘。超时放弃的段可能留下卡在网络读上的线程（如电脑睡眠后连接失效）；
+    # 线程池的工作线程会让解释器退出时一直等它们，进程挂住后 launchd 不再启动下一次更新。
+    # 所以这里直接结束进程，不等残留线程。
+    sys.stdout.flush(); sys.stderr.flush()
+    os._exit(0)
 
 if __name__ == '__main__':
     sys.exit(main())
