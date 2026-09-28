@@ -27,8 +27,6 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
 .ts{font-family:var(--mono);font-size:11px;color:var(--muted)}
 .btn{font-family:var(--mono);font-size:11px;padding:4px 12px;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;transition:all .18s;white-space:nowrap}
 .btn:hover{border-color:var(--accent);color:var(--accent);background:#eef3fd}
-.btn-ai{border-color:#c7d7fa;color:#1e40af;background:#f0f4ff}
-.btn-ai.running{background:#3730a3;color:#fff;border-color:#3730a3;cursor:wait}
 .auto-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:.4rem 2rem;display:flex;align-items:center;gap:12px;font-size:11px;color:var(--muted);flex-wrap:wrap}
 .auto-bar label{font-weight:500;color:#374151}
 .auto-bar select{font-size:11px;padding:2px 6px;border:1px solid var(--border2);border-radius:5px;background:var(--bg2);color:var(--text);font-family:var(--mono);cursor:pointer}
@@ -56,16 +54,11 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
 .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:1rem}
 .mc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);padding:.7rem .9rem;transition:box-shadow .18s,border-color .3s;position:relative}
 .mc:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
-.mc.ai-corrected{border-color:#f97316;animation:flash-correct .8s ease}
-@keyframes flash-correct{0%{background:rgba(249,115,22,.15)}100%{background:transparent}}
-.mc.ai-verified{border-color:#a5b4fc}.mc.ai-verifying{border-color:#6366f1;animation:pulse-border 1s ease infinite}
-@keyframes pulse-border{0%,100%{border-color:#a5b4fc}50%{border-color:#6366f1}}
 .mc-l{font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
 .mc-v{font-family:var(--mono);font-size:19px;font-weight:700;line-height:1}
 .mc-s{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.4}
 .mc-fn{font-size:9.5px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);line-height:1.65}
 .c-ok{color:var(--ok)}.c-warn{color:var(--warn)}.c-danger{color:var(--danger)}.c-accent{color:var(--accent)}.c-muted{color:var(--muted)}
-.corr-tag{display:inline-block;font-size:8px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:3px;padding:0 4px;margin-left:4px;font-family:var(--mono);vertical-align:middle}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);padding:1rem 1.25rem}
 .card-title{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em}
 .row3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:1rem;margin-bottom:1rem}
@@ -92,22 +85,6 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
 .vb-stale{background:#fee2e2;color:#991b1b}
 .stale-note{font-size:10px;font-weight:600;color:#991b1b;background:#fef2f2;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;margin:4px 0 6px;font-family:var(--mono);line-height:1.5}
 .src-freq{font-size:9px;color:var(--muted);font-family:var(--mono);margin-left:4px}
-.ai-panel{background:#f5f3ff;border:1px solid #c4b5fd;border-radius:var(--r);padding:1rem 1.25rem;margin-bottom:1rem;position:relative;overflow:hidden}
-.ai-panel::before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4,#6366f1);background-size:200%;animation:shimmer 2s linear infinite}
-@keyframes shimmer{to{background-position:200% 0}}
-.ai-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.ai-title{font-size:11px;font-weight:700;color:#4c1d95;font-family:var(--mono);display:flex;align-items:center;gap:6px}
-.ver-tbl{width:100%;border-collapse:collapse;font-size:10px;margin-top:8px}
-.ver-tbl th{font-size:9px;font-weight:700;color:#5b21b6;padding:3px 7px;background:rgba(99,102,241,.12);text-align:left;font-family:var(--mono)}
-.ver-tbl td{padding:4px 7px;border-bottom:1px solid rgba(99,102,241,.12);font-family:var(--mono);vertical-align:top}
-.ver-tbl tr:last-child td{border-bottom:none}
-.st-match{color:var(--ok);font-weight:700}.st-diff{color:var(--warn);font-weight:700}.st-corr{color:#ea580c;font-weight:700}
-.ai-thinking{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:11px;color:#5b21b6;font-family:var(--mono)}
-.dots span{display:inline-block;width:5px;height:5px;background:#6366f1;border-radius:50%;margin:0 1.5px;animation:dp 1.2s ease-in-out infinite}
-.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
-@keyframes dp{0%,80%,100%{transform:scale(.3);opacity:.3}40%{transform:scale(1);opacity:1}}
-.src-tag{font-size:8px;background:#ede9fe;color:#5b21b6;padding:1px 5px;border-radius:3px;font-family:var(--mono);white-space:nowrap}
-.ai-ts-sm{font-size:9px;color:#7c3aed;font-family:var(--mono);opacity:.8}
 /* Decision tab */
 .dm-page{max-width:1440px;margin:0 auto;padding:1.25rem 1.75rem 3rem}
 .funnel-wrap{display:flex;flex-direction:column;gap:0}
@@ -183,7 +160,6 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
   <div><div class="logo">A-RISK<em>/MONITOR</em></div><div style="font-size:9px;color:#6366f1;font-family:var(--mono);margin-top:1px">v11 · 价量散点 · 两融二阶导 · 四区作战</div></div>
   <div class="hdr-r">
     <div class="dot dot-cache" id="sdot"></div><span class="ts" id="stxt">缓存32m前</span><span class="ts" id="ts">4/25 00:40:33</span>
-    <button class="btn btn-ai" id="btn-ai" onclick="runAIVerify()">🤖 AI验证</button>
     <button class="btn" onclick="loadData(true)">↻ 刷新</button>
     <button class="btn" id="btn-dl" onclick="downloadHTML()" style="border-color:#0ea5e9;color:#0ea5e9" title="下载到本地后用浏览器打开可获取实时数据">⬇ 下载本地版</button>
   </div>
@@ -196,11 +172,6 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
   </select>
   <div class="prog-wrap" id="pw" style="display:none"><div class="prog-bar" id="pb" style="width: 0%;"></div></div>
   <span class="next-lbl" id="nxt-lbl">→16:05</span>
-  <span style="margin-left:8px;color:#374151;font-weight:500">AI验证</span>
-  <select id="sel-ai" onchange="applyAISetting()">
-    <option value="0">关闭</option><option value="auto">每次刷新后</option><option value="3600">每1小时</option><option value="eod" selected="">仅收盘后</option>
-  </select>
-  <span class="ai-ts-sm" id="ai-last-ts" style="margin-left:4px"></span>
 </div>
 
 <div class="tab-nav">
@@ -219,7 +190,6 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
         <span style="font-size:11px;color:var(--muted)">当前 ERP</span>
         <span class="erp-val c-ok" id="erp-val">4.15%</span>
         <span class="vbadge" data-meta="pe_300,bond10y"></span>
-        <span id="erp-corr-tag" style="display:none" class="corr-tag">AI已修正</span>
       </div>
     </div>
     <div>
@@ -235,8 +205,8 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
     <div class="fn-item buy"><span class="fn-ok">🟢 趋势：</span> ERP分位&gt;70%并开始回落，安全买入区域。</div>
   </div>
   <div class="metrics fi" style="animation-delay:.05s">
-    <div class="mc just-updated" id="mc-pe"><div class="mc-l">万得全A PE <span class="vbadge" data-meta="pe_300"></span><span id="pe-corr-tag" class="corr-tag" style="display:none">AI修正</span></div><div class="mc-v c-accent" id="m-pe">16.87x</div><div class="mc-s" id="m-pe-s">万得全A</div></div>
-    <div class="mc just-updated" id="mc-bond"><div class="mc-l">10Y国债 <span class="vbadge" data-meta="bond10y"></span><span id="bond-corr-tag" class="corr-tag" style="display:none">AI修正</span></div><div class="mc-v c-muted" id="m-bond">1.78%</div><div class="mc-s" id="m-bond-s">中国10年期国债</div></div>
+    <div class="mc just-updated" id="mc-pe"><div class="mc-l">万得全A PE <span class="vbadge" data-meta="pe_300"></span></div><div class="mc-v c-accent" id="m-pe">16.87x</div><div class="mc-s" id="m-pe-s">万得全A</div></div>
+    <div class="mc just-updated" id="mc-bond"><div class="mc-l">10Y国债 <span class="vbadge" data-meta="bond10y"></span></div><div class="mc-v c-muted" id="m-bond">1.78%</div><div class="mc-s" id="m-bond-s">中国10年期国债</div></div>
     <div class="mc just-updated" id="mc-pb"><div class="mc-l">破净率 <span class="vbadge" data-meta="pb_ratio"></span></div><div class="mc-v c-warn" id="m-pb">9.1%</div><div class="mc-s" id="m-pb-s">阈值10%</div><div class="mc-fn">超过<strong style="color:var(--danger)">10–15%</strong>历史上为大熊市底部。</div></div>
   </div>
   <div class="row3 fi" style="animation-delay:.1s">
@@ -357,18 +327,8 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
     </div>
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:5px" id="hm"><div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:20px;font-size:11px">加载行业数据中...</div></div>
   </div>
-  <div class="ai-panel fi" style="animation-delay:.23s">
-    <div class="ai-hdr">
-      <div class="ai-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b21b6" stroke-width="2.2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
-        Claude AI 市场数据交叉验证 · 差异自动修正
-      </div>
-      <div style="display:flex;align-items:center;gap:8px"><span class="ai-ts-sm" id="ai-verify-ts"></span><button class="btn btn-ai" style="padding:3px 9px;font-size:10px" onclick="runAIVerify()">立即验证</button></div>
-    </div>
-    <div id="ai-body"><div style="font-size:11px;color:#5b21b6;font-family:var(--mono);padding:3px 0;line-height:1.8">点击「AI验证」，Claude 通过网络搜索最新数据，<strong>差异&gt;2%时自动修正</strong>面板数据。</div></div>
-  </div>
   <div class="dnote fi" style="animation-delay:.26s">
-    <strong>数据来源</strong>：PE/PB/国债/两融/ETF来自东财实时接口，社融/行业资金流来自东财数据中心，HV30来自新浪K线（需代理），妙想API作为补充。<strong>AI验证</strong>：差异&gt;2%时<span style="color:#ea580c;font-weight:600">自动修正</span>。<br>
+    <strong>数据来源</strong>：PE/PB/国债/两融/ETF来自东财实时接口，社融/行业资金流来自东财数据中心，HV30来自新浪K线（需代理），妙想API作为补充。<br>
     <span id="cnote" style="color:var(--accent)">缓存数据（32分钟前）。</span>
   </div>
 </div>
@@ -527,7 +487,6 @@ async function probePrebuiltGen(){
     return j&&j.generated_at||null;
   }catch(e){return null;}
 }
-let _aiOverrides={};
 let _prebuiltData=null;
 
 /* ═══ 数据元信息（source / date / is_estimate / stale）═══
@@ -647,19 +606,12 @@ function switchTab(n){
 }
 
 /* ═══ AUTO-REFRESH ═══ */
-let _timer=null,_raf=null,_interval='eod',_aiInterval='eod',_lastAI=0,_aiOnRefresh=false,_start=0;
+let _timer=null,_raf=null,_interval='eod',_start=0;
 function applyRefreshSetting(){
   const v=$('sel-refresh').value;clearTimeout(_timer);cancelAnimationFrame(_raf);$('pb').style.width='0%';
   if(v==='eod'){_interval='eod';schedEOD();$('pw').style.display='none';$('nxt-lbl').textContent='→16:05';}
   else if(v==='0'){_interval=0;$('pw').style.display='none';$('nxt-lbl').textContent='';}
   else{_interval=parseInt(v);$('pw').style.display='block';startCountdown(_interval);}
-}
-function applyAISetting(){
-  const v=$('sel-ai').value;
-  if(v==='0'){_aiInterval=0;_aiOnRefresh=false;}
-  else if(v==='auto'){_aiOnRefresh=true;_aiInterval=0;}
-  else if(v==='eod'){_aiInterval='eod';_aiOnRefresh=false;}
-  else{_aiInterval=parseInt(v);_aiOnRefresh=false;}
 }
 function startCountdown(secs){
   _start=Date.now();
@@ -667,7 +619,7 @@ function startCountdown(secs){
     const el=(Date.now()-_start)/1000,pct=Math.min(100,el/secs*100),rem=Math.max(0,Math.round(secs-el));
     $('pb').style.width=pct+'%';
     $('nxt-lbl').textContent=rem>=60?Math.floor(rem/60)+'m'+String(rem%60).padStart(2,'0')+'s':rem+'s后刷新';
-    if(el>=secs){_timer=setTimeout(async()=>{await loadData(true);if(_aiOnRefresh||(typeof _aiInterval==='number'&&_aiInterval>0&&Date.now()-_lastAI>_aiInterval*1000))runAIVerify();if(typeof _interval==='number'&&_interval>0)startCountdown(_interval);},100);cancelAnimationFrame(_raf);return;}
+    if(el>=secs){_timer=setTimeout(async()=>{await loadData(true);if(typeof _interval==='number'&&_interval>0)startCountdown(_interval);},100);cancelAnimationFrame(_raf);return;}
     _raf=requestAnimationFrame(tick);
   }
   cancelAnimationFrame(_raf);_raf=requestAnimationFrame(tick);
@@ -675,7 +627,7 @@ function startCountdown(secs){
 function schedEOD(){
   const now=new Date(),nx=new Date(now);nx.setHours(16,5,0,0);if(now>=nx)nx.setDate(nx.getDate()+1);
   $('nxt-lbl').textContent='→'+nx.getHours()+':'+String(nx.getMinutes()).padStart(2,'0');
-  _timer=setTimeout(()=>{loadData(true);if(_aiInterval==='eod'||_aiOnRefresh)runAIVerify();schedEOD();},nx-now);
+  _timer=setTimeout(()=>{loadData(true);schedEOD();},nx-now);
 }
 
 /* ═══ UTILS ═══ */
@@ -1252,7 +1204,7 @@ async function fetchAll(force){
   // ── 12. 最终计算 ──────────────────────────────────────────
   const latestTurn=recentTurn[recentTurn.length-1];
   const turnoverPct=Math.min(99,Math.round((avgTurn||latestTurn||2.88)/3.5*100));
-  const pe=_aiOverrides.peFullA||peNow,bd=_aiOverrides.bond10y||bondNow;
+  const pe=peNow,bd=bondNow;
   const erp=+((1/pe-bd/100)*100).toFixed(2);
   const erpPct=Math.round(Math.min(100,Math.max(0,(erp-2.0)/(7.0-2.0)*100)));
   const totalVolYi=volYuan?volYuan/1e8:recentVol[recentVol.length-1].v;
@@ -1686,7 +1638,7 @@ function mkPb(scheme,pct,label,val){
 }
 function renderDecisionModel(d){
   if(!d)return;
-  const pe=_aiOverrides.peFullA||d.peFullA,bd=_aiOverrides.bond10y||d.bond10y;
+  const pe=d.peFullA,bd=d.bond10y;
   const erpPct=Math.round(Math.min(100,Math.max(0,((1/pe-bd/100)*100-2.0)/(7.0-2.0)*100)));
   const latestTurn=Array.isArray(d.recentTurn)&&d.recentTurn.length?d.recentTurn[d.recentTurn.length-1]:0;
   // 换手率 fallback：数据缺失时取 1.5（映射到分位 ≈ 43，中性），避免误触发"极度拥挤"信号
@@ -1719,7 +1671,7 @@ function renderDecisionModel(d){
   // 加入后组合 Sharpe 0.41→0.40、回撤 -32.57%→-33.61%。仅保留展示。
   const marginZ=(d.marginSlopeZ!=null?d.marginSlopeZ:calcSlopeZ([2.1,1.8,.9,.3,-.2,-.5,-1.1,d.marginChg||-.4]));
   const marginSlope=d.marginChg||-.4;
-  const iv300=_aiOverrides.iv300||d.iv300||21.2,ivPct=d.ivPct||65;
+  const iv300=d.iv300||21.2,ivPct=d.ivPct||65;
   const marginHot=marginZ>=2.0,ivHigh=ivPct>=70;
 
   // ── 仓位映射：仅 L1（社融Δ）× L2（拥挤度）─────────────────
@@ -1888,104 +1840,12 @@ function renderDecisionModel(d){
   $('dmpg').style.opacity='1';
 }
 
-/* ═══ AI VERIFY ═══ */
-function resolveFieldKey(item){
-  if(item.fieldKey==='peFullA'||item.fieldKey==='pe')return'peFullA';
-  if(item.fieldKey==='bond10y'||item.fieldKey==='bond_10y'||item.fieldKey==='yield10y')return'bond10y';
-  const n=(item.name||'').toLowerCase();
-  if(n.includes('pe')||n.includes('市盈'))return'peFullA';
-  if(n.includes('国债')||n.includes('yield')||n.includes('bond'))return'bond10y';
-  return item.fieldKey||null;
-}
-function applyAICorrection(fieldKey,aiValue,displayId,subtextId,corrTagId,decimals,suffix){
-  const orig=window._D?.[fieldKey];if(orig==null)return false;
-  const pctDiff=Math.abs((aiValue-orig)/orig);
-  if(pctDiff>0.02){
-    _aiOverrides[fieldKey]=aiValue;
-    const e=$(displayId);if(e)e.textContent=aiValue.toFixed(decimals)+suffix;
-    const ct=$(corrTagId);if(ct)ct.style.display='inline-block';
-    const ms=$(subtextId);if(ms)ms.textContent='原值 '+orig.toFixed(decimals)+suffix+' → 修正为 '+aiValue.toFixed(decimals)+suffix+' （差异 '+(pctDiff*100).toFixed(1)+'%）';
-    const card=document.querySelector('#'+displayId)?.closest?.('.mc');if(card){card.classList.remove('ai-verified','ai-verifying');card.classList.add('ai-corrected');}
-    const pe2=_aiOverrides.peFullA||window._D?.peFullA,bd=_aiOverrides.bond10y||window._D?.bond10y;
-    if(pe2&&bd){
-      const ne=+((1/pe2-bd/100)*100).toFixed(2),np=Math.round(Math.min(100,Math.max(0,(ne-2.0)/(7.0-2.0)*100)));
-      const ev=$('erp-val');if(ev){ev.textContent=ne+'%';ev.className='erp-val '+(np>=90?'c-danger':np>=70?'c-warn':'c-ok');}
-      const ed=$('erp-detail');if(ed)ed.textContent='1/'+pe2.toFixed(2)+' − '+bd.toFixed(2)+'%';
-      const ep=$('erp-pct');if(ep){ep.textContent=np+'%';ep.className='erp-pct-big '+(np>=90?'c-danger':np>=70?'c-warn':'c-ok');}
-      const pg=$('pct-grad');if(pg)pg.style.width=np+'%';const pn=$('pct-needle');if(pn)pn.style.left=np+'%';
-      const ect=$('erp-corr-tag');if(ect)ect.style.display='inline-block';
-      if(fieldKey==='bond10y')renderBondTrendChart(aiValue);
-    }
-    if(window._D)renderDecisionModel(window._D);
-    return true;
-  }
-  return false;
-}
-async function aiCall(body,retries=3){
-  for(let i=0;i<retries;i++){
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(resp.status===429){const ms=(i+1)*8000;$('ai-body').innerHTML='<div class="ai-thinking"><div class="dots"><span></span><span></span><span></span></div>请求过于频繁，等待 '+(ms/1000)+'秒后重试...</div>';await new Promise(r=>setTimeout(r,ms));continue;}
-    if(!resp.ok)throw new Error('HTTP '+resp.status);
-    return resp;
-  }
-  throw new Error('HTTP 429 请求超出频率限制，请稍后再试');
-}
-let _aiRunning=false;
-async function runAIVerify(){
-  if(_aiRunning)return;_aiRunning=true;_lastAI=Date.now();
-  const btn=$('btn-ai');if(btn){btn.classList.add('running');btn.textContent='⟳ 验证中...';}
-  ['mc-pe','mc-bond'].forEach(id=>{const e=$(id);if(e)e.classList.add('ai-verifying');});
-  $('ai-body').innerHTML='<div class="ai-thinking"><div class="dots"><span></span><span></span><span></span></div>Claude 正在搜索最新市场数据...</div>';
-  const today=new Date().toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'});
-  const curPE=(_aiOverrides.peFullA||window._D?.peFullA||16.87).toFixed(2);
-  const curBond=(_aiOverrides.bond10y||window._D?.bond10y||1.78).toFixed(2);
-  try{
-    const resp=await aiCall({model:'claude-sonnet-4-20250514',max_tokens:800,
-      system:'你是A股市场数据交叉验证分析师。仅返回JSON，禁止任何markdown或额外文字。',
-      tools:[{type:'web_search_20250305',name:'web_search'}],
-      messages:[{role:'user',content:'今日：'+today+'。面板数据：PE='+curPE+'x，10Y国债='+curBond+'%。搜索最新公开数据并验证。返回JSON：{"ts":"'+today+'","items":[{"name":"指标名","fieldKey":"peFullA或bond10y","dash_val":数字,"found_val":数字,"src":"来源","status":"match|diff","note":"说明"}],"summary":"评估","corrections":0}'}]});
-    const data=await resp.json();
-    let txt='';for(const b of data.content){if(b.type==='text')txt+=b.text;}
-    let result=null;try{const m=txt.match(/\{[\s\S]*\}/);if(m)result=JSON.parse(m[0]);}catch(e){}
-    ['mc-pe','mc-bond'].forEach(id=>{const e=$(id);if(e)e.classList.remove('ai-verifying');});
-    if(result?.items){
-      const corrected=[];
-      for(const item of result.items){
-        const fk=resolveFieldKey(item);
-        const fv=typeof item.found_val==='number'?item.found_val:parseFloat(item.found_val);
-        if(fk&&!isNaN(fv)&&fv>0){
-          let ok=false;
-          if(fk==='peFullA')ok=applyAICorrection('peFullA',fv,'m-pe','m-pe-s','pe-corr-tag',2,'x');
-          else if(fk==='bond10y')ok=applyAICorrection('bond10y',fv,'m-bond','m-bond-s','bond-corr-tag',2,'%');
-          if(ok){item.corrected=true;corrected.push(item.name);}
-        }
-        if(item.status==='match'&&!item.corrected){const cid=({peFullA:'mc-pe',bond10y:'mc-bond'})[fk];if(cid){const e=$(cid);if(e){e.classList.remove('ai-verifying');e.classList.add('ai-verified');}}}
-      }
-      const diffN=result.items.filter(x=>x.status==='diff').length,corrN=corrected.length;
-      const rows=result.items.map(item=>{
-        const fk=resolveFieldKey(item);
-        const sc=item.corrected?'<span class="st-corr">⚡ 已修正</span>':item.status==='match'?'<span class="st-match">✓ 匹配</span>':'<span class="st-diff">⚠ 差异</span>';
-        const fv=typeof item.found_val==='number'?item.found_val.toFixed(3):String(item.found_val);
-        const dv=typeof item.dash_val==='number'?item.dash_val.toFixed(3):String(item.dash_val);
-        return '<tr style="'+(item.corrected?'background:rgba(249,115,22,.06)':'')+'"><td style="font-weight:600">'+esc(item.name)+'</td><td>'+esc(dv)+'</td><td style="font-weight:700;color:'+(item.corrected?'#ea580c':item.status==='diff'?'var(--warn)':'var(--text)')+'">'+esc(fv)+'</td><td><span class="src-tag">'+esc(item.src||'—')+'</span></td><td>'+sc+'</td><td style="color:var(--muted);font-size:9px">'+esc(item.note||'')+'</td></tr>';
-      }).join('');
-      $('ai-body').innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'+(corrN>0?'<span class="st-corr">⚡ 已自动修正 '+corrN+' 项</span>':'<span class="st-match">✓ 数据吻合</span>')+'<span class="src-tag">'+esc(result.ts)+'</span><span style="font-size:10px;color:var(--muted)">'+result.items.filter(x=>x.status==='match').length+'项匹配 · '+diffN+'项差异</span></div><div style="overflow-x:auto"><table class="ver-tbl"><thead><tr><th>指标</th><th>面板原值</th><th>AI搜索</th><th>来源</th><th>状态</th><th>说明</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+(result.summary?'<div style="margin-top:8px;padding:6px 10px;background:rgba(99,102,241,.08);border-radius:6px;border-left:2px solid #6366f1;font-size:11px;color:#312e81;line-height:1.7">'+esc(result.summary)+'</div>':'');
-    }else{$('ai-body').innerHTML='<div style="font-size:11px;color:#5b21b6;font-family:var(--mono);white-space:pre-wrap;line-height:1.7">'+esc(txt||'未获取到结果')+'</div>';}
-    const tsEl=$('ai-verify-ts');if(tsEl)tsEl.textContent='已验证 '+[new Date().getHours(),new Date().getMinutes(),new Date().getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
-    const lastEl=$('ai-last-ts');if(lastEl)lastEl.textContent='上次AI验证 '+[new Date().getHours(),new Date().getMinutes()].map(n=>String(n).padStart(2,'0')).join(':');
-  }catch(e){
-    $('ai-body').innerHTML='<div style="font-size:11px;color:var(--danger);font-family:var(--mono);padding:6px 0">⚠ AI验证失败：'+esc(e.message)+'</div>';
-    ['mc-pe','mc-bond'].forEach(id=>{const e=$(id);if(e)e.classList.remove('ai-verifying');});
-  }
-  _aiRunning=false;if(btn){btn.classList.remove('running');btn.textContent='🤖 AI验证';}
-}
-
 /* ═══ MAIN RENDER ═══ */
 function render(d){
   window._D=d;
   window._META={...(d.meta||staticMeta()),...(window._ETF_META?{etf_categories:window._ETF_META}:{})};
   renderMeta(window._META);
-  const pe=_aiOverrides.peFullA||d.peFullA,bd=_aiOverrides.bond10y||d.bond10y;
+  const pe=d.peFullA,bd=d.bond10y;
   const erp=+((1/pe-bd/100)*100).toFixed(2),erpPct=Math.round(Math.min(100,Math.max(0,(erp-2.0)/(7.0-2.0)*100)));
   const set=(id,txt,color)=>{const e=$(id);if(e){e.textContent=txt;if(color)e.style.color=color;}};
   set('erp-detail','1/'+pe.toFixed(2)+' − '+bd.toFixed(2)+'%');
@@ -2042,7 +1902,6 @@ async function loadData(force=false,_isRetry=false){
     if(!data){const c=loadC();data=c?c.d:{...getStatic(),erp:4.15,erpPct:43,totalVolWanYi:0,avgTurn:0,ma250yi:0,volRatio:null,volSource:'等待数据...',shKlines:[]};}
     else saveC(data,_prebuiltData?.generated_at);
     apply(data,false,0);
-    if(_aiOnRefresh)setTimeout(runAIVerify,600);
   }catch(e){
     console.error('loadData:',e);
     try{apply({...getStatic(),erp:4.15,erpPct:43,totalVolWanYi:0,avgTurn:0,ma250yi:0,volRatio:null,volSource:'加载失败',shKlines:[]},true,-1);}catch(e2){console.error(e2);}
@@ -2071,7 +1930,7 @@ function apply(d,fromCache,age){
 }
 document.addEventListener('visibilitychange',()=>{
   // 页面切回前台：探测后台版本，缓存过期或版本变了就重拉
-  if(document.visibilityState==='visible'){probePrebuiltGen().then(g=>{if(!loadC(g))loadData();});if(!_aiRunning&&typeof _aiInterval==='number'&&_aiInterval>0&&Date.now()-_lastAI>_aiInterval*1000)runAIVerify();}
+  if(document.visibilityState==='visible'){probePrebuiltGen().then(g=>{if(!loadC(g))loadData();});}
 });
 /* ═══ 下载本地版 ═══ */
 function downloadHTML(){
@@ -2140,6 +1999,5 @@ window.addEventListener('load',async ()=>{
   }
 
   applyRefreshSetting();
-  applyAISetting();
 });
 </script></body></html>
