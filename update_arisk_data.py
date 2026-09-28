@@ -109,12 +109,30 @@ def _pboc_cells(row_html):
     return [re.sub(r"<[^>]+>", "", c).replace("&nbsp;", " ").replace("\xa0", " ").strip()
             for c in cs]
 
+def _pboc_tsf_index_url(year):
+    """某年『社会融资规模』栏目页 URL。当年是 {year}ntjsj/shrzgm/，往年会被归档到数字 ID 路径
+    （如 2025 → 5570903/5570885/），故从「统计数据」总索引按「YYYY年统计数据」→「社会融资规模」查找。"""
+    import re, requests
+    h = {"User-Agent": PBOC_UA, "Accept-Language": "zh-CN,zh;q=0.9"}
+    base = f"{PBOC_HOST}/diaochatongjisi/116219/116319/"
+    direct = f"{base}{year}ntjsj/shrzgm/index.html"
+    try:
+        top = _pboc_decode(requests.get(base + "index.html", headers=h, timeout=20).content)
+        m = re.search(r"href=['\"]([^'\"]+)['\"][^>]*>\s*" + str(year) + r"年统计数据", top)
+        if m:
+            ypage = _pboc_decode(requests.get(PBOC_HOST + m.group(1), headers=h, timeout=20).content)
+            m2 = re.search(r"href=['\"]([^'\"]+/index\.html)['\"][^>]*>\s*社会融资规模\s*<", ypage)
+            if m2:
+                return PBOC_HOST + m2.group(1)
+    except Exception as e:
+        log(f"  · PBoC {year} 栏目发现失败，改用默认路径: {e}")
+    return direct
+
 def pboc_year_tsf(year):
     """抓央行某年『社会融资规模存量统计表』，返回 [{'m':'YY-MM','g':同比,'s':'pboc'}]，仅含已发布月份。"""
     import re, requests
     h = {"User-Agent": PBOC_UA, "Accept-Language": "zh-CN,zh;q=0.9"}
-    idx_url = f"{PBOC_HOST}/diaochatongjisi/116219/116319/{year}ntjsj/shrzgm/index.html"
-    idx = _pboc_decode(requests.get(idx_url, headers=h, timeout=20).content)
+    idx = _pboc_decode(requests.get(_pboc_tsf_index_url(year), headers=h, timeout=20).content)
     pos = idx.find("社会融资规模存量统计表")          # 标签后第一个 attachDir htm 即该表
     if pos < 0:
         raise RuntimeError("年度索引未见『社会融资规模存量统计表』")
@@ -192,10 +210,13 @@ def fetch_credit_yoy():
     try:
         from datetime import date
         yr = date.today().year
-        rows = pboc_year_tsf(yr)
-        # 始终尝试拉上一年，避免图上只剩当年那几根柱子（历史 2025 数据也需要）
-        try: rows = pboc_year_tsf(yr - 1) + rows
-        except Exception as e: log(f"  · PBoC 上年表不可得: {e}")
+        # 上年 + 当年各自独立抓：1 月当年表尚未发布时不至于整级失败，图上也有完整 12 个月
+        rows = []
+        for y in (yr - 1, yr):
+            try: rows += pboc_year_tsf(y)
+            except Exception as e: log(f"  · PBoC {y} 年表不可得: {e}")
+        if not rows:
+            raise RuntimeError("PBoC 上年与当年表均不可得")
         rows = _merge_pboc(rows)
         if len(rows) >= 3:
             log(f"  ✓ 社融存量同比[央行口径] ({len(rows)} 月) 最新 {rows[-1]}  · PBoC 直连")
@@ -391,6 +412,29 @@ def fetch_hv30():
         return fallback('hv30')
 
 # ── 5. 两融 daily + monthly ─────────────────────────────────
+MARGIN_SZ_RATIO_DEFAULT = 1.95   # 深/沪两融余额比的兜底值（2026-09 实测 0.947 → 合计 ≈ 沪 × 1.95）
+
+def _margin_sz_series():
+    """深交所两融余额日序列 {YYYYMMDD: 元}。
+    历史用 macro_china_market_margin_sz（深交所数据，东财转载，一次拿全历史）；
+    最新一日用深交所官方 stock_margin_szse(date) 核对（单位亿元）。"""
+    import akshare as ak, pandas as pd
+    df = ak.macro_china_market_margin_sz()
+    df = df[['日期', '融资融券余额']].dropna().copy()
+    df['date'] = pd.to_datetime(df['日期']).dt.strftime('%Y%m%d')
+    ser = dict(zip(df['date'], df['融资融券余额'].astype(float)))
+    last = max(ser)
+    try:
+        off = ak.stock_margin_szse(date=last)
+        v = float(off['融资融券余额'].iloc[0]) * 1e8
+        diff = abs(v / ser[last] - 1)
+        if diff > 0.005:
+            log(f"  ⚠ 深市两融 {last} 转载值 {ser[last]/1e8:.0f} 亿与深交所官方 {v/1e8:.0f} 亿差 {diff:.1%}，以官方为准")
+            ser[last] = v
+    except Exception as e:
+        log(f"  · 深交所官方单日核对不可得（{e}），沿用转载值")
+    return ser
+
 def fetch_margin():
     try:
         import akshare as ak
@@ -403,29 +447,37 @@ def fetch_margin():
         date_col = next(c for c in sse.columns if '日期' in c)
         sse = sse[[date_col, sse_col]].rename(columns={date_col:'date', sse_col:'sse'})
         sse['date'] = sse['date'].astype(str).str[:8]
-        try:
-            szse = ak.stock_margin_szse(date=end)
-            log(f"  · szse 单日点对点查询行数: {len(szse)}")
-        except Exception:
-            szse = None
-        # 取 SSE 作为主，深圳合计 ×1.85（经验比；避免 szse 多日接口不稳）
         sse_all = sse.sort_values('date').reset_index(drop=True)
         sse_all['sse'] = sse_all['sse'].astype(float)
-        sse_all['total'] = sse_all['sse'] * 1.85
+
+        # 深市：真实数据优先；两所按日期取交集（任一侧缺的日子不出合计，避免"半个市场"）
+        try:
+            sz = _margin_sz_series()
+            sse_all = sse_all[sse_all['date'].isin(sz)].reset_index(drop=True)
+            if sse_all.empty:
+                raise RuntimeError("沪深两融无共同日期")
+            sse_all['sz'] = sse_all['date'].map(sz)
+            sse_all['total'] = sse_all['sse'] + sse_all['sz']
+            ratio = round(float(sse_all['total'].iloc[-1] / sse_all['sse'].iloc[-1]), 4)
+            src, est, note = '沪深交易所', False, '上交所 + 深交所融资融券余额（深市历史为东财转载的深交所数据，最新日经深交所官方核对）'
+        except Exception as e:
+            ratio = (prev_value('margin') or {}).get('sz_ratio') or MARGIN_SZ_RATIO_DEFAULT
+            log(f"  ⚠ 深市两融不可得（{e}），按最近实测比例 ×{ratio} 估算")
+            sse_all['total'] = sse_all['sse'] * ratio
+            src, est, note = '上交所', True, f'深市不可得，两市合计 = 上交所 × {ratio}（最近一次实测比例）'
+
         # daily 取最近 30 天
-        sse_daily = sse_all.tail(30)
+        tail = sse_all.tail(30)
         daily = [{"d": f"{int(d[4:6])}/{int(d[6:8])}", "v": int(round(float(v)/1e8))}
-                 for d, v in zip(sse_daily['date'].tolist(), sse_daily['total'].tolist())]
+                 for d, v in zip(tail['date'].tolist(), tail['total'].tolist())]
         # monthly 用全部数据按 YYYY-MM 分组取月内最后一日
         # 关键：剔除"当月未完成"月份，避免月中值当"月末"用，导致 Z 分数失真
         sse_all['ym'] = sse_all['date'].str[:6]
         current_ym = today.strftime('%Y%m')
         last_by_month = sse_all.groupby('ym').last().reset_index()
-        # 只保留 ym < 当前月 的"已完成"月份
         completed = last_by_month[last_by_month['ym'] < current_ym]
         monthly = [{"m": f"{r['ym'][2:4]}-{r['ym'][4:6]}", "v": int(round(r['total']/1e8))}
-                   for _, r in completed.iterrows()]
-        monthly = monthly[-12:]
+                   for _, r in completed.iterrows()][-12:]
         # 单独把"当月至今"记录到 current_month（不参与 Z 计算，但方便 dashboard 显示）
         cur_row = last_by_month[last_by_month['ym'] == current_ym]
         current_month = None
@@ -435,14 +487,17 @@ def fetch_margin():
                              "v": int(round(r['total']/1e8)),
                              "partial": True,
                              "as_of": daily[-1]['d'] if daily else None}
-        log(f"  ✓ margin daily={len(daily)} monthly={len(monthly)}(已完成) "
-            f"{'+当月未完成 ' + current_month['m'] if current_month else ''}"
-            f"最新日余额 {daily[-1]['v']} 亿")
-        out = {"daily": daily[-30:], "monthly": monthly[-12:]}
+        last = sse_all.iloc[-1]
+        ld = last['date']
+        log(f"  ✓ margin[{src}{'·估算' if est else ''}] daily={len(daily)} monthly={len(monthly)}(已完成) "
+            f"{'+当月未完成 ' + current_month['m'] + ' ' if current_month else ''}"
+            f"最新 {ld} 合计 {daily[-1]['v']} 亿（沪 {last['sse']/1e8:.0f}，比例 ×{ratio}）")
+        out = {"daily": daily, "monthly": monthly, "sh_yi": int(round(last['sse']/1e8)),
+               "sz_ratio": ratio}
+        if not est:
+            out["sz_yi"] = int(round(last['sz']/1e8))
         if current_month: out["current_month"] = current_month
-        ld = sse_all['date'].iloc[-1]
-        return field(out, '上交所', f"{ld[:4]}-{ld[4:6]}-{ld[6:8]}", is_estimate=True,
-                     note='两市合计 = 上交所融资融券余额 × 1.85（深市按经验比估算）')
+        return field(out, src, f"{ld[:4]}-{ld[4:6]}-{ld[6:8]}", is_estimate=est, note=note)
     except Exception as e:
         log(f"  ✗ margin 失败: {e}")
         return fallback('margin')
