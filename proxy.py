@@ -221,12 +221,22 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # 语义端点 → arisk_data.json 中的字段名。每个字段原样返回统一结构：
+    #   {"value": ..., "source": ..., "date": ..., "is_estimate": bool, "stale": bool}
+    SEMANTIC_ROUTES = {
+        "/pe": "pe_300",
+        "/bond": "bond10y",
+        "/sectors": "sector_live",
+        "/margin": "margin",
+        "/sf": "m2_monthly",
+        "/fund": "fund_issuance",
+    }
+
     def _semantic(self, path):
         """看板语义端点 → 直接读同目录每日更新的 arisk_data.json。
         返回 None 表示不是语义端点（交回通用 ?url= 反代处理）。"""
         import os
-        routes = {"/pe", "/bond", "/prebuilt", "/sectors", "/margin", "/sf", "/fund"}
-        if path not in routes:
+        if path != "/prebuilt" and path not in self.SEMANTIC_ROUTES:
             return None
         data_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "arisk_data.json")
         try:
@@ -234,22 +244,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 d = json.load(f)
         except Exception:
             d = {}
-        if path == "/pe":
-            return {"pe": d.get("pe_300"), "pb": None}
-        if path == "/bond":
-            b = d.get("bond10y") or {}
-            return {"yield": b.get("latest"), "hist": b.get("hist", [])}
         if path == "/prebuilt":
             return d
-        if path == "/sectors":
-            return d.get("sector_live", [])
-        if path == "/margin":
-            return (d.get("margin") or {}).get("monthly", [])
-        if path == "/sf":
-            return d.get("m2_monthly", [])
-        if path == "/fund":
-            return d.get("fund_issuance", [])
-        return None
+        return d.get(self.SEMANTIC_ROUTES[path]) or {
+            "value": None, "source": None, "date": None, "is_estimate": False, "stale": True}
 
 
 if __name__ == "__main__":

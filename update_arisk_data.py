@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
-"""update_arisk_data.py — 每日收盘后生成 /home/zhuya/Desktop/arisk_data.json
+"""update_arisk_data.py — 每日收盘后生成 arisk_data.json
 
-由 cron 在交易日 16:10 调用。优先 MX API（社融存量同比），失败回退 AKShare M2 同比。
-所有 section 独立 try/except；某段失败时复用旧 JSON 对应字段，整体不退出。
+由 launchd/cron 在交易日收盘后调用。
+所有 section 独立 try/except；某段失败时复用旧 JSON 对应字段（标记 stale），整体不退出。
+
+输出结构：除 generated_at / generated_date 两个元信息外，每个数据字段统一为
+    {"value": ..., "source": "央行", "date": "2026-09-25", "is_estimate": false, "stale": false}
+  · source      实际命中的那一级数据源（中文短名）
+  · date        数据本身的日期（不是抓取时间）；月频为 YYYY-MM
+  · is_estimate 是否为推算/估算值
+  · stale       本次抓取失败、复用了旧值时为 true（date 保留旧值原来的日期）
+  · note        可选，口径补充说明
 """
 import json, os, sys, time, traceback
 from datetime import datetime
@@ -20,11 +28,41 @@ def load_prev():
     except Exception: return {}
 PREV = load_prev()
 
-def fallback(key, default=None):
+def field(value, source, date, is_estimate=False, stale=False, note=None):
+    """统一的数据字段包装。date 为数据本身的日期（不是抓取时间）。"""
+    out = {"value": value, "source": source, "date": date,
+           "is_estimate": bool(is_estimate), "stale": bool(stale)}
+    if note: out["note"] = note
+    return out
+
+def _is_wrapped(v):
+    return isinstance(v, dict) and 'value' in v and 'stale' in v
+
+def prev_value(key):
+    """旧 JSON 中某字段的 value（兼容升级前未包装的旧结构）"""
     v = PREV.get(key)
-    if v is None: return default
-    log(f"  ↩ {key} 复用旧值")
-    return v
+    return v.get('value') if _is_wrapped(v) else v
+
+def _legacy_date(v):
+    """从升级前的旧结构值里尽量找回数据日期（找不到返回 None）"""
+    if isinstance(v, dict):
+        return v.get('date') or v.get('latest_date')
+    if isinstance(v, list) and v and isinstance(v[-1], dict):
+        return v[-1].get('date')
+    return None
+
+def fallback(key):
+    """本次抓取失败 → 复用旧值，stale=True，保留旧值原来的 date/source。"""
+    v = PREV.get(key)
+    if v is None or (_is_wrapped(v) and v.get('value') is None):
+        log(f"  ✗ {key} 无旧值可复用")
+        return field(None, None, None, stale=True)
+    out = dict(v) if _is_wrapped(v) else field(v, '旧版缓存', None)   # 旧结构：来源未知
+    if not out.get('date'):
+        out['date'] = _legacy_date(out['value'])
+    out['stale'] = True
+    log(f"  ↩ {key} 复用旧值（stale，数据停留在 {out.get('date')}）")
+    return out
 
 # ── 1. 社融存量同比 ──────────────────────────────────────────
 # 主源：央行（PBoC）官网『社会融资规模存量统计表』，其“增速（%）”列即社融存量同比。
@@ -81,11 +119,15 @@ def pboc_year_tsf(year):
 def _merge_pboc(fresh):
     """新抓的央行月份并入历史中已是央行口径(s=pboc)的月份，按月去重排序取后12个。
     刻意不混入旧累计法的月份，避免在口径接缝处产生虚假的一阶导跳变。"""
-    cached = {e['m']: e for e in (PREV.get('m2_monthly') or [])
+    cached = {e['m']: e for e in (prev_value('m2_monthly') or [])
               if isinstance(e, dict) and e.get('s') == 'pboc'}
     for e in fresh:
         cached[e['m']] = e
     return sorted(cached.values(), key=lambda e: e['m'])[-12:]
+
+def _ym(m):
+    """'26-08' → '2026-08'"""
+    return f"20{m[:2]}-{m[3:5]}"
 
 def fetch_credit_yoy():
     # ── 主源：央行官方社融存量同比（最权威、最及时）──
@@ -99,7 +141,7 @@ def fetch_credit_yoy():
         rows = _merge_pboc(rows)
         if len(rows) >= 3:
             log(f"  ✓ 社融存量同比[央行口径] ({len(rows)} 月) 最新 {rows[-1]}  · PBoC 直连")
-            return rows
+            return field(rows, '央行', _ym(rows[-1]['m']))
         log(f"  ✗ PBoC 社融存量同比 点数不足: {len(rows)} 月")
     except Exception as e:
         log(f"  ✗ PBoC 社融存量同比 失败: {e}")
@@ -124,7 +166,8 @@ def fetch_credit_yoy():
             out.append({"m": f"{ym[2:4]}-{ym[4:6]}", "g": round(float(r['yoy']), 2)})
         if len(out) >= 6:
             log(f"  ⚠ 社融存量同比[回退·商务部镜像累计] ({len(out)} 月) 最新 {out[-1]}  · 口径偏高~1pp且滞后")
-            return out[-12:]
+            return field(out[-12:], '商务部镜像累计', _ym(out[-1]['m']),
+                         note='增量累计推算的存量同比，口径偏高约1pp且滞后')
         log(f"  ✗ 社融存量同比[回退·累计] 数据不足: {len(out)} 月")
     except Exception as e:
         log(f"  ✗ 社融存量同比[回退·累计] 失败: {e}")
@@ -147,7 +190,8 @@ def fetch_credit_yoy():
             if 0 < g < 30: out.append({"m": f"{yy}-{mm}", "g": g})
         if len(out) >= 6:
             log(f"  ⚠ M2 同比兜底（信号 IC≈0）最新 {out[-1]}")
-            return out[-12:]
+            return field(out[-12:], 'M2兜底', _ym(out[-1]['m']),
+                         note='M2 同比替代社融，信号无效（IC≈0）')
     except Exception as e:
         log(f"  ✗ M2 也失败: {e}")
     return fallback('m2_monthly')
@@ -162,8 +206,9 @@ def fetch_bond10y():
         hist = [{"d": f"{d.month}/{d.day}", "v": round(float(v), 4)}
                 for d, v in zip(__import__('pandas').to_datetime(df['日期']), df[col])]
         latest = round(float(df[col].iloc[-1]), 2)
-        log(f"  ✓ bond10y latest={latest}% ({len(hist)} 天)")
-        return {"latest": latest, "hist": hist}
+        d = str(df['日期'].iloc[-1])[:10]
+        log(f"  ✓ bond10y latest={latest}% ({len(hist)} 天) 日期 {d}")
+        return field({"latest": latest, "hist": hist}, '东财', d)
     except Exception as e:
         log(f"  ✗ bond10y 失败: {e}")
         return fallback('bond10y')
@@ -174,8 +219,9 @@ def fetch_pe_300():
         import akshare as ak
         df = ak.stock_index_pe_lg(symbol='沪深300')
         pe = round(float(df.iloc[-1]['滚动市盈率']), 2)
-        log(f"  ✓ pe_300 = {pe}")
-        return pe
+        d = str(df.iloc[-1]['日期'])[:10]
+        log(f"  ✓ pe_300 = {pe}（{d}）")
+        return field(pe, '乐咕乐股', d, note='沪深300 滚动市盈率(TTM)')
     except Exception as e:
         log(f"  ✗ pe_300 失败: {e}")
         return fallback('pe_300')
@@ -206,8 +252,8 @@ def fetch_hv30():
         recent5y = hv_series[-1250:] if len(hv_series) >= 1250 else hv_series
         below = sum(1 for v in recent5y if v <= latest)
         pct = round(below / len(recent5y) * 100)
-        log(f"  ✓ hv30 latest={latest}% pct={pct}% (基于 {len(recent5y)} 个交易日)")
-        return {"latest": latest, "pct": pct, "hist": out_hist}
+        log(f"  ✓ hv30 latest={latest}% pct={pct}% (基于 {len(recent5y)} 个交易日) 日期 {dates[-1][:10]}")
+        return field({"latest": latest, "pct": pct, "hist": out_hist}, '新浪K线', dates[-1][:10])
     except Exception as e:
         log(f"  ✗ hv30 失败: {e}")
         traceback.print_exc()
@@ -263,7 +309,9 @@ def fetch_margin():
             f"最新日余额 {daily[-1]['v']} 亿")
         out = {"daily": daily[-30:], "monthly": monthly[-12:]}
         if current_month: out["current_month"] = current_month
-        return out
+        ld = sse_all['date'].iloc[-1]
+        return field(out, '上交所', f"{ld[:4]}-{ld[4:6]}-{ld[6:8]}", is_estimate=True,
+                     note='两市合计 = 上交所融资融券余额 × 1.85（深市按经验比估算）')
     except Exception as e:
         log(f"  ✗ margin 失败: {e}")
         return fallback('margin')
@@ -296,7 +344,8 @@ def fetch_vol_7d():
             total = amt_sh + amt_sz
             out.append({"d": f"{int(d[5:7])}/{int(d[8:10])}", "v": int(round(total))})
         log(f"  ✓ vol_7d {len(out)} 天（新浪估算），最新 {out[-1]['v']} 亿")
-        return out
+        return field(out, '新浪估算', sh.iloc[n-1]['date'][:10], is_estimate=True,
+                     note='指数成交量 × 经验系数估算')
     except Exception as e:
         log(f"  ✗ vol_7d 失败: {e}")
         traceback.print_exc()
@@ -321,7 +370,7 @@ def fetch_limit_7d():
             dt -= timedelta(days=1)
         out.reverse()
         log(f"  ✓ limit_7d {len(out)} 天，今 up/dn={out[-1]['up']}/{out[-1]['down']}")
-        return out
+        return field(out, '东财', out[-1]['date'])
     except Exception as e:
         log(f"  ✗ limit_7d 失败: {e}")
         return fallback('limit_7d')
@@ -353,8 +402,9 @@ def fetch_sector_live():
                 r = f.result()
                 if r: out.append(r)
         out.sort(key=lambda x: x['ret60'], reverse=True)
-        log(f"  ✓ sector_live {len(out)}/{len(items)} 行业，最强 {out[0]['n']} {out[0]['ret60']}%")
-        return out
+        d = max(x['date'] for x in out)
+        log(f"  ✓ sector_live {len(out)}/{len(items)} 行业，最强 {out[0]['n']} {out[0]['ret60']}% 日期 {d}")
+        return field(out, '申万', d)
     except Exception as e:
         log(f"  ✗ sector_live 失败: {e}")
         return fallback('sector_live')
@@ -420,7 +470,7 @@ def fetch_turnover():
                           "pct": x['pct'], "amount_yi": x['amount_yi']} for x in days]
         log(f"  ✓ turnover {latest['date']} = {latest['pct']}% "
             f"（{latest['amount_yi']}亿/{latest['mktcap_yi']}亿），序列 {len(days)} 日")
-        return out
+        return field(out, '沪深交易所', latest['date'])
     except Exception as e:
         log(f"  ✗ turnover 失败: {e}")
         traceback.print_exc()
@@ -445,7 +495,8 @@ def fetch_fund_issuance():
         agg = df.groupby('ym')[col_share].sum().sort_index().tail(12)
         out = [{"m": ym, "v": round(float(v), 1)} for ym, v in agg.items()]
         log(f"  ✓ fund_issuance {len(out)} 月，最新 {out[-1] if out else '空'}")
-        return out
+        if not out: return fallback('fund_issuance')
+        return field(out, '东财', _ym(out[-1]['m']))
     except Exception as e:
         log(f"  ✗ fund_issuance 失败: {e}")
         return fallback('fund_issuance')
@@ -565,7 +616,8 @@ def fetch_etf_categories():
         other = next((c["scale_yi"] for c in cats if c["category"] == "其他"), 0)
         log(f"  ✓ etf_categories now={date_now} vs {date_old} "
             f"{len(cats)}类/{sum(c['count_now'] for c in cats)}只，其他占比 {other/total*100:.1f}%")
-        return {"latest_date": date_now, "prev_date": date_old, "categories": cats}
+        return field({"latest_date": date_now, "prev_date": date_old, "categories": cats},
+                     '上交所份额×东财现价', date_now)
     except Exception as e:
         log(f"  ✗ etf_categories 失败: {e}")
         traceback.print_exc()
@@ -605,9 +657,11 @@ def main():
     log("[11/11] 抓 ETF 资金分类流向（沪市60日）...")
     out['etf_categories'] = fetch_etf_categories()
 
-    # 保留 None 的字段（fallback 拿不到时）但记录
-    missing = [k for k, v in out.items() if v is None]
+    fields = {k: v for k, v in out.items() if _is_wrapped(v)}
+    missing = [k for k, v in fields.items() if v['value'] is None]
+    stale = [f"{k}({v.get('date')})" for k, v in fields.items() if v['stale'] and v['value'] is not None]
     if missing: log(f"⚠ 以下字段缺失: {missing}")
+    if stale: log(f"⚠ 以下字段本次抓取失败，复用旧值: {stale}")
 
     # 写入
     tmp = OUT_PATH + '.tmp'

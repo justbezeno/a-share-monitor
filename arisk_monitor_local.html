@@ -89,6 +89,9 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
 .sec-tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .vbadge{display:inline-flex;align-items:center;font-size:9px;padding:2px 7px;border-radius:10px;font-family:var(--mono);font-weight:600}
 .vb-est{background:#fef3c7;color:#92400e}.vb-live{background:#dbeafe;color:#1e40af}.vb-ok{background:#dcfce7;color:#166534}
+.vb-stale{background:#fee2e2;color:#991b1b}
+.stale-note{font-size:10px;font-weight:600;color:#991b1b;background:#fef2f2;border:1px solid #fca5a5;border-radius:5px;padding:3px 8px;margin:4px 0 6px;font-family:var(--mono);line-height:1.5}
+.src-freq{font-size:9px;color:var(--muted);font-family:var(--mono);margin-left:4px}
 .ai-panel{background:#f5f3ff;border:1px solid #c4b5fd;border-radius:var(--r);padding:1rem 1.25rem;margin-bottom:1rem;position:relative;overflow:hidden}
 .ai-panel::before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4,#6366f1);background-size:200%;animation:shimmer 2s linear infinite}
 @keyframes shimmer{to{background-position:200% 0}}
@@ -215,7 +218,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
       <div style="margin-top:6px;display:flex;align-items:baseline;gap:8px">
         <span style="font-size:11px;color:var(--muted)">当前 ERP</span>
         <span class="erp-val c-ok" id="erp-val">4.15%</span>
-        <span class="vbadge vb-est">估算</span>
+        <span class="vbadge" data-meta="pe_300,bond10y"></span>
         <span id="erp-corr-tag" style="display:none" class="corr-tag">AI已修正</span>
       </div>
     </div>
@@ -232,14 +235,14 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
     <div class="fn-item buy"><span class="fn-ok">🟢 趋势：</span> ERP分位&gt;70%并开始回落，安全买入区域。</div>
   </div>
   <div class="metrics fi" style="animation-delay:.05s">
-    <div class="mc just-updated" id="mc-pe"><div class="mc-l">万得全A PE <span class="vbadge vb-est">公开值</span><span id="pe-corr-tag" class="corr-tag" style="display:none">AI修正</span></div><div class="mc-v c-accent" id="m-pe">16.87x</div><div class="mc-s" id="m-pe-s">万得全A</div></div>
-    <div class="mc just-updated" id="mc-bond"><div class="mc-l">10Y国债 <span class="vbadge vb-est">公开值</span><span id="bond-corr-tag" class="corr-tag" style="display:none">AI修正</span></div><div class="mc-v c-muted" id="m-bond">1.78%</div><div class="mc-s" id="m-bond-s">中国10年期国债</div></div>
-    <div class="mc just-updated" id="mc-pb"><div class="mc-l">破净率 <span class="vbadge vb-est">估算</span></div><div class="mc-v c-warn" id="m-pb">9.1%</div><div class="mc-s" id="m-pb-s">阈值10%</div><div class="mc-fn">超过<strong style="color:var(--danger)">10–15%</strong>历史上为大熊市底部。</div></div>
+    <div class="mc just-updated" id="mc-pe"><div class="mc-l">万得全A PE <span class="vbadge" data-meta="pe_300"></span><span id="pe-corr-tag" class="corr-tag" style="display:none">AI修正</span></div><div class="mc-v c-accent" id="m-pe">16.87x</div><div class="mc-s" id="m-pe-s">万得全A</div></div>
+    <div class="mc just-updated" id="mc-bond"><div class="mc-l">10Y国债 <span class="vbadge" data-meta="bond10y"></span><span id="bond-corr-tag" class="corr-tag" style="display:none">AI修正</span></div><div class="mc-v c-muted" id="m-bond">1.78%</div><div class="mc-s" id="m-bond-s">中国10年期国债</div></div>
+    <div class="mc just-updated" id="mc-pb"><div class="mc-l">破净率 <span class="vbadge" data-meta="pb_ratio"></span></div><div class="mc-v c-warn" id="m-pb">9.1%</div><div class="mc-s" id="m-pb-s">阈值10%</div><div class="mc-fn">超过<strong style="color:var(--danger)">10–15%</strong>历史上为大熊市底部。</div></div>
   </div>
   <div class="row3 fi" style="animation-delay:.1s">
     <div class="card">
-      <div class="card-title">两市成交额 × 换手率</div>
-      <div id="vol-verify" style="font-size:10px;color:var(--muted);margin-bottom:6px;font-family:var(--mono)" title="数据来源：静态+行业实时">4/25≈2.63万亿 | 4/23≈2.60万亿 | 4/22≈2.53万亿 | 4/21≈2.48万亿 | 连续7日&gt;2万亿 ⚠逃顶信号区</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px;flex-wrap:wrap"><div class="card-title" style="margin:0">两市成交额 × 换手率</div><span class="vbadge" data-meta="vol_7d,turnover"></span></div>
+      <div id="vol-verify" style="font-size:10px;color:var(--muted);margin-bottom:6px;font-family:var(--mono)"></div>
       <div style="position:relative;height:170px"><canvas id="c-vol" style="box-sizing: border-box; display: block; height: 170px; width: 645px;" width="967" height="255"></canvas></div>
       <div class="fnote" style="margin-top:10px">
         <strong>解读指南</strong>
@@ -248,7 +251,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
       </div>
     </div>
     <div class="card">
-      <div class="card-title">10Y 国债收益率走势</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px;flex-wrap:wrap"><div class="card-title" style="margin:0">10Y 国债收益率走势</div><span class="vbadge" data-meta="bond10y"></span></div>
       <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px"><span class="mc-v c-muted" id="bond-big">1.78%</span><span id="bond-delta-badge" style="font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--danger);">Δ+0%</span></div>
       <div style="font-size:10px;color:var(--muted);margin-bottom:8px" id="bond-slope-lbl">MA5斜率 -0.018%  ↓利率下行助ERP</div>
       <div style="position:relative;height:150px"><canvas id="c-bond-trend" style="box-sizing: border-box; display: block; height: 150px; width: 304px;" width="456" height="225"></canvas></div>
@@ -260,7 +263,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
     </div>
     <div class="card">
       <div class="card-title">沪深300 30日历史波动率（HV30）</div>
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin:6px 0 4px"><span style="font-family:var(--mono);font-size:36px;font-weight:700" id="iv-val-big">--</span><span id="iv-src-badge" style="font-size:9px;padding:2px 6px;border-radius:3px;font-family:var(--mono);background:#fef3c7;color:#92400e">静态</span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin:6px 0 4px"><span style="font-family:var(--mono);font-size:36px;font-weight:700" id="iv-val-big">--</span><span class="vbadge" data-meta="hv30"></span></div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px">5年分位 <strong id="iv-pct">--</strong>% · <span id="iv-regime">--</span></div>
       <div style="position:relative;margin-top:10px"><div class="iv-bar"><div class="iv-seg iv-ok">&lt;15%</div><div class="iv-seg iv-norm">15-25%</div><div class="iv-seg iv-hot">&gt;30%</div></div><div id="iv-needle" style="position:absolute;top:0;width:2px;height:13px;background:#1a202c;border-radius:1px;transform:translateX(-50%);transition:left 1s;left:37%"></div></div>
       <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);font-family:var(--mono);margin-top:3px"><span>10%</span><span>15%</span><span>20%</span><span>25%</span><span>30%</span><span>40%</span></div>
@@ -281,9 +284,9 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
   </div>
   <div class="row3b fi" style="animation-delay:.15s">
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div class="card-title" style="margin:0">信贷脉冲（社融存量同比一阶导）</div><span class="vbadge vb-ok">央行(PBoC)·月度·约15日发布</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div class="card-title" style="margin:0">信贷脉冲（社融存量同比一阶导）</div><span><span class="vbadge" data-meta="m2_monthly"></span><span class="src-freq">月度·约15日发布</span></span></div>
       <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.7">Δ(社融存量YoY) = 本月-上月 YoY 增速差。<strong style="color:var(--text)">连续2月Δ&gt;0=看多确认，领先A股约6-12个月</strong>（回测2016-至今 119 月，IC≈+0.27，命中率约60%）。</div>
-      <div id="sf-verify" style="font-size:10px;color:var(--muted);font-family:var(--mono);background:var(--bg3);border-radius:6px;padding:6px 10px;margin-bottom:8px;line-height:1.8"><strong>社融存量增速（央行）：</strong>25-11:7.9% | 25-12:8.3% | 26-01:8.2% | 26-02:8.2% | 26-03:7.9%<br>最新：26-03 = <strong>7.9%</strong> <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-family:var(--mono);background:#fef3c7;color:#92400e">静态备用</span></div>
+      <div id="sf-verify" style="font-size:10px;color:var(--muted);font-family:var(--mono);background:var(--bg3);border-radius:6px;padding:6px 10px;margin-bottom:8px;line-height:1.8">等待数据…</div>
       <div style="position:relative;height:130px"><canvas id="c-credit" style="box-sizing: border-box; display: block; height: 130px; width: 418px;" width="627" height="195"></canvas></div>
       <div style="margin-top:8px;display:flex;gap:16px;font-size:11px">
         <span>当前Δ：<strong id="ci-now" style="font-family: var(--mono); color: var(--danger);">-0.30</strong></span>
@@ -292,7 +295,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
       </div>
     </div>
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div class="card-title" style="margin:0">两融余额变化 + 动量ROC</div><span id="margin-src-badge" class="vbadge" style="background:#fef3c7;color:#92400e;border:1px solid #f5cc6a">静态备用</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div class="card-title" style="margin:0">两融余额变化 + 动量ROC</div><span class="vbadge" data-meta="margin"></span></div>
       <div style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.7">余额加速上行+指数滞涨=<strong style="color:var(--text)">杠杆过热预警。</strong></div>
       <div style="position:relative;height:110px"><canvas id="c-margin" style="box-sizing: border-box; display: block; height: 110px; width: 418px;" width="627" height="165"></canvas></div>
       <div style="font-size:10px;font-weight:600;color:var(--muted);margin:6px 0 3px;text-transform:uppercase;letter-spacing:.04em">斜率动量 ROC（二阶导）<span style="font-weight:400;margin-left:6px;color:var(--muted);font-size:9px">斜率尚正但ROC掉头→最精准撤出点</span></div>
@@ -306,7 +309,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
   </div>
   <div class="card full fi" style="animation-delay:.18s">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:10px"><div class="card-title" style="margin:0">ETF 资金分类流向 · 60日同比</div><span class="vbadge vb-ok">上交所·季度窗口·缓存1h</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><div class="card-title" style="margin:0">ETF 资金分类流向 · 60日同比</div><span class="vbadge" data-meta="etf_categories"></span></div>
       <div style="font-size:10px;color:var(--muted)" id="etf-cat-dates">加载中...</div>
     </div>
     <div style="font-size:10px;color:var(--muted);margin-bottom:8px">
@@ -343,7 +346,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
   </div>
   <div class="card full fi" style="animation-delay:.2s">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;align-items:center;gap:10px"><div class="card-title" style="margin:0">申万一级行业 · 60日累计涨跌热力图</div><span class="vbadge vb-ok">31个行业·收盘价·缓存30min</span></div>
+      <div style="display:flex;align-items:center;gap:10px"><div class="card-title" style="margin:0">申万一级行业 · 60日累计涨跌热力图</div><span class="vbadge" data-meta="sector_live"></span></div>
     </div>
     <div style="font-size:10px;color:var(--muted);margin-bottom:8px">
       <strong style="color:#dc2626">深红 ≥+25% 估值透支</strong> ·
@@ -503,7 +506,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
 const $=id=>document.getElementById(id);
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';
-const CKEY='arisk_v17',CTTL=6*3600*1000;
+const CKEY='arisk_v18',CTTL=6*3600*1000;
 // 缓存带数据版本戳 gen（=预构建 JSON 的 generated_at）。
 // loadC 时若与当前 _prebuiltData 的 generated_at 不一致，视为过期 → 强制重拉。
 // 这样后台 cron 一更新 JSON，前端下次加载就自动丢弃旧缓存，无需手动 localStorage.clear()。
@@ -526,6 +529,48 @@ async function probePrebuiltGen(){
 }
 let _aiOverrides={};
 let _prebuiltData=null;
+
+/* ═══ 数据元信息（source / date / is_estimate / stale）═══
+   update_arisk_data.py 输出的每个字段统一为 {value,source,date,is_estimate,stale[,note]}。
+   卡片上的来源徽标、「估算」标记、日期、stale 提示一律从这里读取，不在 HTML 里写死。 */
+const META_KEYS=['pe_300','bond10y','pb_ratio','vol_7d','turnover','hv30','m2_monthly','margin','sector_live','etf_categories'];
+const META_STATIC={source:'静态占位',date:null,is_estimate:true,stale:true};
+const META_LABEL={pe_300:'PE',bond10y:'10Y国债',pb_ratio:'破净率',vol_7d:'成交额',turnover:'换手率',hv30:'HV30',
+  m2_monthly:'社融',margin:'两融',sector_live:'行业',etf_categories:'ETF'};
+const isWrapped=w=>!!(w&&typeof w==='object'&&'value' in w&&'stale' in w);
+const valOf=w=>isWrapped(w)?w.value:null;
+const metaOf=w=>isWrapped(w)&&w.value!=null
+  ?{source:w.source||null,date:w.date||null,is_estimate:!!w.is_estimate,stale:!!w.stale,note:w.note||null}
+  :null;
+const staticMeta=()=>Object.fromEntries(META_KEYS.map(k=>[k,{...META_STATIC}]));
+function fmtDate(dt){
+  if(!dt)return'';
+  return dt.length===10&&dt.slice(0,4)===String(new Date().getFullYear())?dt.slice(5):dt;
+}
+function staleText(m){
+  return m.date?'⚠ 数据停留在 '+m.date:'⚠ 无可用数据（静态占位值）';
+}
+/* 把 meta 渲染到所有 [data-meta] 徽标上；stale 时在徽标所在行下方插入醒目提示 */
+function renderMeta(meta){
+  document.querySelectorAll('[data-meta]').forEach(el=>{
+    const keys=el.dataset.meta.split(',');
+    const ms=keys.map(k=>(meta&&meta[k])||META_STATIC);
+    const est=ms.some(m=>m.is_estimate),stale=ms.some(m=>m.stale);
+    const src=[...new Set(ms.map(m=>m.source||'无数据'))].join('+');
+    const dates=ms.map(m=>m.date).filter(Boolean).sort();
+    el.textContent=src+(dates.length?' · '+fmtDate(dates[0]):'')+(est?' · 估算':'');
+    el.className='vbadge '+(stale?'vb-stale':est?'vb-est':'vb-ok');
+    el.title=ms.map((m,i)=>(keys.length>1?META_LABEL[keys[i]]+'：':'')+(m.source||'无数据')+(m.date?' '+m.date:'')+(m.note?'（'+m.note+'）':'')).join('\n');
+    let note=el._staleNote;
+    if(!note){
+      note=document.createElement('div');note.className='stale-note';
+      el.parentElement.insertAdjacentElement('afterend',note);el._staleNote=note;
+    }
+    const staleMsgs=ms.map((m,i)=>m.stale?(keys.length>1?META_LABEL[keys[i]]+' ':'')+staleText(m):null).filter(Boolean);
+    note.textContent=staleMsgs.join('；');
+    note.style.display=staleMsgs.length?'':'none';
+  });
+}
 
 /* ─ 加载 Python 更新脚本生成的预构建数据 ─
    file:// 协议下浏览器禁止 fetch 本地 JSON，所以经 localhost:8899/prebuilt 绕路。
@@ -703,10 +748,10 @@ async function fetchKline(secid, lmt){
 async function fetchSectorLive(){
   try{
     const r=await fetch('http://localhost:8899/sectors',{cache:'no-cache'});
-    if(!r.ok)return[];
-    const arr=await r.json();
-    return Array.isArray(arr)?arr:[];
-  }catch(e){return[];}
+    if(!r.ok)return null;
+    const w=await r.json();
+    return Array.isArray(valOf(w))?w:null;
+  }catch(e){return null;}
 }
 
 /* 拉单个申万行业板块的20日成交额K线
@@ -725,16 +770,16 @@ async function fetchSectorKline20(bkCode){ return []; }
 async function fetchIndexValuation(){
   try{
     const r=await fetch('http://localhost:8899/pe',{cache:'no-cache'});
-    if(r.ok){const j=await r.json();return{peFullA:j.pe||null,pbFullA:j.pb||null};}
+    if(r.ok){const w=await r.json();if(valOf(w)>0)return w;}
   }catch(e){}
-  return{};
+  return null;
 }
 
 /* 10年国债收益率 → /bond (AKShare 中债，盘后稳定) */
 async function fetchBondYield(){
   try{
     const r=await fetch('http://localhost:8899/bond',{cache:'no-cache'});
-    if(r.ok){const j=await r.json();if(j.yield>0&&j.yield<20)return j.yield;}
+    if(r.ok){const w=await r.json();const y=valOf(w)?.latest;if(y>0&&y<20)return w;}
   }catch(e){}
   return null;
 }
@@ -794,7 +839,8 @@ async function _fetchMarginDataImpl(){
   // 余额仍落在合理区间，旧逻辑会把三年前的数据当成当前值。加新鲜度校验拒收陈旧数据。
   try{
     const r=await fetch('http://localhost:8899/margin',{cache:'no-cache'});
-    const monthly=await r.json();
+    const w=await r.json();
+    const monthly=valOf(w)?.monthly;
     if(Array.isArray(monthly)&&monthly.length>=3){
       const klines=monthly.map(x=>({date:'20'+x.m.slice(0,2)+'-'+x.m.slice(3,5),val:x.v}));
       const bal=klines[klines.length-1].val;
@@ -802,7 +848,7 @@ async function _fetchMarginDataImpl(){
       const [ly,lm]=monthly[monthly.length-1].m.split('-');
       const now=new Date();
       const staleMonths=(now.getFullYear()*12+now.getMonth())-((2000+ +ly)*12+(+lm-1));
-      if(bal>1000&&bal<50000&&staleMonths<=3)return{bal,klines,src:'akshare'};
+      if(bal>1000&&bal<50000&&staleMonths<=3)return{bal,klines,src:'akshare',meta:metaOf(w)};
       if(staleMonths>3)console.warn('[margin] /margin 数据陈旧('+monthly[monthly.length-1].m+')，已拒收');
     }
   }catch(e){console.warn('[margin] AKShare /margin failed:',e);}
@@ -826,14 +872,13 @@ async function fetchETFCategories(){
   // 主路径：proxy /etf_categories（若代理实现了该实时路由）
   try{
     const r=await fetch('http://localhost:8899/etf_categories',{cache:'no-cache'});
-    if(r.ok){const d=await r.json();if(d&&d.categories&&d.categories.length)return d;}
+    if(r.ok){const w=await r.json();if(valOf(w)?.categories?.length)return w;}
   }catch(e){}
   // 兜底：日更 arisk_data.json 的 etf_categories 字段（update_arisk_data.py 每日生成）
   try{
-    if(_prebuiltData&&_prebuiltData.etf_categories&&_prebuiltData.etf_categories.categories)
-      return _prebuiltData.etf_categories;
+    if(valOf(_prebuiltData?.etf_categories)?.categories)return _prebuiltData.etf_categories;
     const pb=await loadPrebuiltJSON();
-    if(pb&&pb.etf_categories&&pb.etf_categories.categories)return pb.etf_categories;
+    if(valOf(pb?.etf_categories)?.categories)return pb.etf_categories;
   }catch(e){}
   return null;
 }
@@ -853,7 +898,7 @@ async function fetchSFData(){
   // 优先 AKShare 代理端点（M2同比增速）
   try{
     const r=await fetch('http://localhost:8899/sf',{cache:'no-cache'});
-    if(r.ok){const d=await r.json();if(Array.isArray(d)&&d.length>=4)return d;}
+    if(r.ok){const w=await r.json();const v=valOf(w);if(Array.isArray(v)&&v.length>=4)return w;}
   }catch(e){}
   return null;
 }
@@ -864,7 +909,7 @@ async function fetchFundIssuance(){
   // 优先 AKShare 代理端点
   try{
     const r=await fetch('http://localhost:8899/fund',{cache:'no-cache'});
-    if(r.ok){const d=await r.json();if(Array.isArray(d)&&d.length>=4)return d;}
+    if(r.ok){const w=await r.json();const v=valOf(w);if(Array.isArray(v)&&v.length>=4)return w;}
   }catch(e){}
   return null;
 }
@@ -953,6 +998,7 @@ function getStatic(){
     sfData:[],impulse:[],impLabels:[],
     recentVol,recentTurn,
     fundIssuance:[],fundLabels:[],sectors:[],
+    meta:staticMeta(),
   };
 }
 
@@ -963,6 +1009,10 @@ async function fetchAll(force){
   // 导致 cron 更新了 arisk_data.json 后点"↻ 刷新"仍是旧值（必须整页 reload 才生效）
   if(force||!_prebuiltData){try{const pb=await loadPrebuiltJSON();if(pb)_prebuiltData=pb;}catch(e){}}
   const prebuilt=_prebuiltData;
+  // P(k)=预构建字段的 value；PM(k)=其元信息。meta 记录每个卡片数值实际来自哪一级数据。
+  const P=k=>valOf(prebuilt?.[k]),PM=k=>metaOf(prebuilt?.[k]);
+  const meta=staticMeta();
+  const useMeta=(k,m)=>{if(m)meta[k]=m;};
   let volYuan=null,avgTurn=null,shKlines=[],sectorLive=[],volSource='加载中';
 
   setL('获取今日成交额...','[1/6]');
@@ -972,8 +1022,8 @@ async function fetchAll(force){
   const _bondKlineP=Promise.race([fetchBondKline(30),new Promise((_,rej)=>setTimeout(rej,10000))]).catch(()=>[]);
 
   // 用 Promise.allSettled，单个失败不影响其他
-  let valuation={},bondYield=null,bondKlines=[],overview={},
-      marginBal=null,marginKlines=[],sfDataLive=null;
+  let peW=null,bondW=null,bondYield=null,bondKlines=[],overview={},
+      marginBal=null,marginKlines=[],sfW=null,sfDataLive=null;
   const _settled2=await Promise.allSettled([
     fetchIndexValuation(),
     fetchBondYield(),
@@ -981,16 +1031,18 @@ async function fetchAll(force){
     fetchSFData(),
   ]);
   const _v=i=>_settled2[i].status==='fulfilled'?_settled2[i].value:null;
-  valuation=_v(0)||{};bondYield=_v(1);overview=_v(2)||{};sfDataLive=_v(3);
+  peW=_v(0);bondW=_v(1);bondYield=valOf(bondW)?.latest||null;overview=_v(2)||{};
+  sfW=_v(3);sfDataLive=valOf(sfW);
   bondKlines=await _bondKlineP;
 
   // 两融后台并发启动（不阻塞 [3/6]，避免 25s 卡顿）
-  const _marginP=!_prebuiltData?.margin
+  let marginMeta=null;
+  const _marginP=!P('margin')
     ?Promise.race([fetchMarginData(),new Promise((_,rej)=>setTimeout(rej,25000))]).catch(()=>({bal:null,klines:[]}))
     :Promise.resolve({bal:null,klines:[]});
 
   setL('获取行业/HV30...','[3/6]');
-  let turnResult={avgTurn:null},ivResult=null,ivKlines=[],hs300Prices=null;
+  let turnResult={avgTurn:null},ivResult=null,ivKlines=[],hs300Prices=null,sectorW=null;
   const _settled3=await Promise.allSettled([
     fetchTurnFromClist(),     // 当前已废弃 push2 调用，立即返回 null
     fetchSectorLive(),         // /sectors AKShare 申万一级
@@ -1000,16 +1052,19 @@ async function fetchAll(force){
   ]);
   const _w=i=>_settled3[i].status==='fulfilled'?_settled3[i].value:null;
   turnResult=_w(0)||{avgTurn:null};
-  sectorLive=_w(1)||[];ivResult=_w(2);ivKlines=_w(3)||[];hs300Prices=_w(4);
+  sectorW=_w(1);sectorLive=valOf(sectorW)||[];ivResult=_w(2);ivKlines=_w(3)||[];hs300Prices=_w(4);
   // 换手率优先级：预构建 JSON (真实值，沪+深 stock_sse_deal_daily) > 实时接口 > estimateTurn 兜底
-  const prebuiltTurn=_prebuiltData?.turnover?.avg_pct;
+  const prebuiltTurn=P('turnover')?.avg_pct;
   avgTurn=prebuiltTurn||turnResult.avgTurn||estimateTurn(volYuan);
 
   // ── MX API 二次补充（sfData / fundIssuance 主接口为空时） ──────────
-  if((!sfDataLive||sfDataLive.length<4)&&!_prebuiltData?.m2_monthly){
+  if((!sfDataLive||sfDataLive.length<4)&&!P('m2_monthly')){
     try{
       const mxSF=await Promise.race([fetchMX('社融存量同比增速最近12个月'),new Promise((_,rej)=>setTimeout(rej,8000))]);
-      if(mxSF){const parsed=parseMXMonthly(mxSF);if(parsed&&parsed.length>=4)sfDataLive=parsed;}
+      if(mxSF){const parsed=parseMXMonthly(mxSF);if(parsed&&parsed.length>=4){
+        sfDataLive=parsed;
+        sfW={value:parsed,source:'妙想',date:'20'+parsed[parsed.length-1].m,is_estimate:false,stale:false};
+      }}
     }catch(e){}
   }
   setL('拉取历史K线（上证）...','[4/6]');
@@ -1017,7 +1072,7 @@ async function fetchAll(force){
 
   // 收集两融结果（[3/6]+[4/6] 已耗约 5-17s，margin 大概率已就绪）
   if(!marginKlines||marginKlines.length<3){
-    try{const md=await _marginP;if(md?.klines?.length>=3){marginBal=md.bal;marginKlines=md.klines;}}catch(e){}
+    try{const md=await _marginP;if(md?.klines?.length>=3){marginBal=md.bal;marginKlines=md.klines;marginMeta=md.meta||null;useMeta('margin',marginMeta);}}catch(e){}
   }
 
   setL('拉取行业20日K线（并发）...','[5/6]');
@@ -1038,11 +1093,14 @@ async function fetchAll(force){
   let bondNow=bondYield
     ||(bondKlines.length?bondKlines[bondKlines.length-1].close:null)
     ||st.bond10y;
+  if(bondYield)useMeta('bond10y',metaOf(bondW));
 
   // ── 2. PE/PB ──────────────────────────────────────────────
   // 降级链：live /pe → prebuilt pe_300（fetch_pe_300 每日抓，与 /pe 同口径）→ 静态兜底
-  const peNow  = valuation.peFullA  || (prebuilt&&prebuilt.pe_300) || st.peFullA;
-  const pbNow  = valuation.pbFullA  || null;
+  const peSrcW = valOf(peW)>0 ? peW : (P('pe_300')>0 ? prebuilt.pe_300 : null);
+  const peNow  = valOf(peSrcW) || st.peFullA;
+  useMeta('pe_300',metaOf(peSrcW));
+  const pbNow  = null;   // /pe 不提供 PB
   const pbRatioNow = pbNow ? estimatePbRatio(pbNow) : st.pbRatio;
 
   // ── 3. 两融余额 & 斜率序列 ────────────────────────────────
@@ -1075,6 +1133,7 @@ async function fetchAll(force){
     iv300Now=hv30;
     ivPctNow=Math.round(Math.min(99,Math.max(1,(hv30-11)/(40-11)*100)));
     ivSrc='HV30实时';
+    meta.hv30={source:'新浪K线',date:new Date().toISOString().slice(0,10),is_estimate:true,stale:false,note:'盘中实时计算，分位为线性近似'};
   }else if(ivResult&&ivResult.iv300){
     iv300Now=ivResult.iv300;
     if(ivKlines.length>=60){
@@ -1094,17 +1153,20 @@ async function fetchAll(force){
 
   // ── 7. 成交额 + 换手率7日序列（优先K线，次选预构建，回退静态）──
   // 预构建数据（Python MX API 收盘后生成）作为比静态更准确的基准
-  let recentVol=prebuilt?.vol_7d&&prebuilt.vol_7d.length>=3
-    ?[...prebuilt.vol_7d]:[...st.recentVol];
+  let recentVol=P('vol_7d')&&P('vol_7d').length>=3
+    ?[...P('vol_7d')]:[...st.recentVol];
+  if(P('vol_7d')&&P('vol_7d').length>=3)useMeta('vol_7d',PM('vol_7d'));
   let recentTurn=[...st.recentTurn];
   // 换手率序列优先级：预构建真实序列（沪深交易所口径） > localStorage 缓存 > K线估算 > 静态
-  const pbTurnSeries=prebuilt?.turnover?.series;
+  const pbTurnSeries=P('turnover')?.series;
   let turnFromPrebuilt=false;
   if(Array.isArray(pbTurnSeries)&&pbTurnSeries.length>=3){
     recentTurn=pbTurnSeries.map(x=>x.pct);
+    useMeta('turnover',PM('turnover'));
     // 成交额标签对齐换手率序列，保证两条线同一批日期
-    if(!(prebuilt?.vol_7d&&prebuilt.vol_7d.length>=3)){
+    if(!(P('vol_7d')&&P('vol_7d').length>=3)){
       recentVol=pbTurnSeries.map(x=>({d:x.label,v:x.amount_yi}));
+      useMeta('vol_7d',PM('turnover'));
     }
     turnFromPrebuilt=true;
     volSource=(volSource==='静态'||volSource==='加载中')?'交易所换手率':volSource+'+交易所换手率';
@@ -1132,7 +1194,8 @@ async function fetchAll(force){
   const now2=new Date(),todayLabel=(now2.getMonth()+1)+'/'+(now2.getDate());
   const lastLabel=recentVol[recentVol.length-1].d;
   const needsLabelUpdate=(lastLabel!==todayLabel);
-  if(volYuan){recentVol[recentVol.length-1]={d:needsLabelUpdate?todayLabel:lastLabel,v:Math.round(volYuan/1e8)};}
+  if(volYuan){recentVol[recentVol.length-1]={d:needsLabelUpdate?todayLabel:lastLabel,v:Math.round(volYuan/1e8)};
+    meta.vol_7d={source:'新浪实时',date:new Date().toISOString().slice(0,10),is_estimate:true,stale:false,note:'最后一格为新浪盘中成交额'};}
   else if(needsLabelUpdate){recentVol[recentVol.length-1]={...recentVol[recentVol.length-1],d:todayLabel};}
   // 换手率：有效时写入最后一格并缓存到localStorage；非交易时段从缓存恢复
   // 来自预构建序列时最后一格已是交易所真实值，不再用 avgTurn 覆盖（避免 3.045→3.0 精度损失）
@@ -1157,6 +1220,7 @@ async function fetchAll(force){
   // 注：升级后的代理返回 n/excess（与 prebuilt.sector_live 同 schema）；旧版为 name/today。
   //     此处对两种字段名都兼容，否则新代理下名称会渲染成 undefined、今日涨跌恒为 0。
   if((sectorLive||[]).length>=8){
+    useMeta('sector_live',metaOf(sectorW));
     st.sectors=sectorLive.map(s=>({
       n:s.n??s.name,
       bkCode:s.code,
@@ -1172,10 +1236,11 @@ async function fetchAll(force){
   // 数据优先级：预构建 JSON（社融存量同比，IC=0.27）> live /sf（M2 同比，IC≈0）
   //           即使 sfDataLive 拿到了 M2，也要让预构建的社融数据覆盖
   let sfDataFinal=st.sfData,impulseFinal=st.impulse,impLabelsFinal=st.impLabels;
-  const sfSrc=prebuilt&&prebuilt.m2_monthly&&prebuilt.m2_monthly.length>=3
-    ?prebuilt.m2_monthly
-    :(sfDataLive&&sfDataLive.length>=3?sfDataLive:null);
+  const sfUseW=P('m2_monthly')&&P('m2_monthly').length>=3?prebuilt.m2_monthly
+    :(sfDataLive&&sfDataLive.length>=3?sfW:null);
+  const sfSrc=valOf(sfUseW);
   if(sfSrc){
+    useMeta('m2_monthly',metaOf(sfUseW));
     sfDataFinal=sfSrc;
     impulseFinal=[];impLabelsFinal=[];
     for(let i=1;i<sfDataFinal.length;i++){
@@ -1197,20 +1262,23 @@ async function fetchAll(force){
   // ── 13. 覆盖预构建数据（Python 收盘后脚本，无需代理）─────────────────────
   if(prebuilt){
     // 成交额序列：K线不可用时用预构建（MX API 可靠数据）
-    if(prebuilt.vol_7d&&prebuilt.vol_7d.length>=3&&!(shKlines&&shKlines.length>=7)){
-      recentVol=[...prebuilt.vol_7d];
+    if(P('vol_7d')&&P('vol_7d').length>=3&&!(shKlines&&shKlines.length>=7)){
+      recentVol=[...P('vol_7d')];
       if(volSource==='静态')volSource='预构建';
     }
     // 行业资金流：代理不可用时用预构建（Python 直接拉取，无 CORS 限制）
-    if(prebuilt.sector_live&&prebuilt.sector_live.length>=5&&sectorLive.length<15){
-      st.sectors=prebuilt.sector_live;
+    if(P('sector_live')&&P('sector_live').length>=5&&sectorLive.length<15){
+      st.sectors=P('sector_live');
+      useMeta('sector_live',PM('sector_live'));
       volSource+=(volSource.endsWith('实时')||volSource==='预构建'?'':'+')+'行业预构建';
     }
     // 两融余额 & 月斜率序列：东财DC接口已损坏，用 AKShare 预构建数据
-    if(prebuilt.margin&&prebuilt.margin.monthly&&prebuilt.margin.monthly.length>=3
+    const pbMargin=P('margin');
+    if(pbMargin&&pbMargin.monthly&&pbMargin.monthly.length>=3
        &&(!marginKlines||marginKlines.length<3)){
+      useMeta('margin',PM('margin'));
       // 转换 {m:'25-06', v:27000} → {date:'2025-06', val:27000}
-      const pbKlines=prebuilt.margin.monthly.map(x=>{
+      const pbKlines=pbMargin.monthly.map(x=>{
         const [yy,mm]=x.m.split('-');
         return{date:`20${yy}-${mm}`,val:x.v};
       });
@@ -1224,24 +1292,27 @@ async function fetchAll(force){
         marginSlopeSeries=slopes;
         marginSliceLabels=slopeLabels;
       }
-      const lastItem=prebuilt.margin.daily&&prebuilt.margin.daily.length?
-        prebuilt.margin.daily[prebuilt.margin.daily.length-1]:null;
+      const lastItem=pbMargin.daily&&pbMargin.daily.length?
+        pbMargin.daily[pbMargin.daily.length-1]:null;
       if(lastItem)marginBalNow=lastItem.v;
     }
     // 10Y国债收益率：东财债券接口不可用时用 AKShare 预构建数据
-    if(prebuilt.bond10y){
-      if(!bondYield&&!bondKlines.length){
-        bondNow=prebuilt.bond10y.latest||bondNow;
+    const pbBond=P('bond10y');
+    if(pbBond){
+      if(!bondYield&&!bondKlines.length&&pbBond.latest){
+        bondNow=pbBond.latest;
+        useMeta('bond10y',PM('bond10y'));
       }
-      if(prebuilt.bond10y.hist&&prebuilt.bond10y.hist.length>=5&&!window._BOND_HIST_LIVE){
-        window._BOND_HIST_LIVE=prebuilt.bond10y.hist.map(x=>x.v);
+      if(pbBond.hist&&pbBond.hist.length>=5&&!window._BOND_HIST_LIVE){
+        window._BOND_HIST_LIVE=pbBond.hist.map(x=>x.v);
       }
     }
     // 社融存量同比 → 一阶导信号（M2 数据作为口径近似回退，AKShare 与央行口径偏差约1pp，
     // 但一阶导是相对量，方向不受影响）
-    if(prebuilt.m2_monthly&&prebuilt.m2_monthly.length>=3
+    if(P('m2_monthly')&&P('m2_monthly').length>=3
        &&(!sfDataLive||sfDataLive.length<3)){
-      sfDataFinal=prebuilt.m2_monthly;
+      sfDataFinal=P('m2_monthly');
+      useMeta('m2_monthly',PM('m2_monthly'));
       impulseFinal=[];impLabelsFinal=[];
       for(let i=1;i<sfDataFinal.length;i++){
         impulseFinal.push(+(sfDataFinal[i].g-sfDataFinal[i-1].g).toFixed(2));
@@ -1249,11 +1320,12 @@ async function fetchAll(force){
       }
     }
     // 沪深300 HV30（iVIX 替代）：AKShare 计算的30日年化历史波动率
-    if(prebuilt.hv30&&prebuilt.hv30.latest){
+    if(P('hv30')&&P('hv30').latest){
       if(!ivResult||!ivResult.iv300){
-        iv300Now=prebuilt.hv30.latest;
-        ivPctNow=prebuilt.hv30.pct||ivPctNow;
+        iv300Now=P('hv30').latest;
+        ivPctNow=P('hv30').pct||ivPctNow;
         ivSrc='HV30预构建';
+        useMeta('hv30',PM('hv30'));
       }
     }
   }
@@ -1267,10 +1339,11 @@ async function fetchAll(force){
     marginBal:marginBalNow, marginChg:marginChgNow,
     marginSlopeSeries, marginSliceLabels,
     iv300:iv300Now, ivPct:ivPctNow, ivSrc,
-    sfData:sfDataFinal, sfDataIsLive:!!(sfDataLive&&sfDataLive.length>=3), impulse:impulseFinal, impLabels:impLabelsFinal,
+    sfData:sfDataFinal, impulse:impulseFinal, impLabels:impLabelsFinal,
     recentVol,recentTurn,totalVolYi,totalVolWanYi,
     avgTurn,ma250yi,volRatio,volSource,shKlines,
     erp,erpPct,turnoverPct,
+    meta,
   };
 }
 
@@ -1349,14 +1422,6 @@ function renderIV(iv,ivPct,ivSrc){
   const set=(id,txt,color)=>{const e=$(id);if(e){e.textContent=txt;if(color)e.style.color=color;}};
   set('iv-val-big',iv.toFixed(1)+'%');set('iv-pct',String(ivPct));
   const needle=$('iv-needle');if(needle)needle.style.left=clamp((iv-10)/30*100,0,100)+'%';
-  const srcBadge=$('iv-src-badge');
-  if(srcBadge){
-    const isPrebuilt=ivSrc&&ivSrc.includes('预构建');
-    const isLive=ivSrc&&ivSrc!=='静态';
-    srcBadge.textContent=isPrebuilt?'AKShare预构建':ivSrc||'静态';
-    srcBadge.style.background=isLive?'#dcfce7':'#fef3c7';
-    srcBadge.style.color=isLive?'#166534':'#92400e';
-  }
   // HV30 解读：CSI300历史波动率，低估使用同样阈值（HV比IV通常低几个点）
   const regime=iv<12?'极低波动':iv<20?'正常区间':iv<30?'偏高':'高波动';
   set('iv-regime',regime,iv>=30?'var(--danger)':iv>=20?'var(--warn)':'var(--ok)');
@@ -1472,18 +1537,6 @@ function renderMarginChart(d){
     const base=[...STATIC_SLOPES,typeof d.marginChg==='number'?d.marginChg:-.4];
     mD=base.slice(-8);
     mL=mLabels(8);   // 最近8个月，结束于本月
-  }
-
-  // 更新数据来源标志
-  const mgBadge=$('margin-src-badge');
-  if(mgBadge){
-    const isLive=!!(d.marginSlopeSeries&&d.marginSlopeSeries.length>=2&&d.marginSliceLabels);
-    const isPrebuilt=isLive&&!!(_prebuiltData?.margin);
-    mgBadge.textContent=isPrebuilt?'AKShare预构建':isLive?'AKShare实时':'静态备用';
-    mgBadge.style.cssText=isPrebuilt
-      ?'background:#dcfce7;color:#166534;border:1px solid #9ee6c8'
-      :isLive?'background:#dbeafe;color:#1e40af;border:1px solid #93c5fd'
-      :'background:#fef3c7;color:#92400e;border:1px solid #f5cc6a';
   }
 
   // 动态计算Z分数，写回 window._D 供 renderDecisionModel 使用
@@ -1930,6 +1983,8 @@ async function runAIVerify(){
 /* ═══ MAIN RENDER ═══ */
 function render(d){
   window._D=d;
+  window._META={...(d.meta||staticMeta()),...(window._ETF_META?{etf_categories:window._ETF_META}:{})};
+  renderMeta(window._META);
   const pe=_aiOverrides.peFullA||d.peFullA,bd=_aiOverrides.bond10y||d.bond10y;
   const erp=+((1/pe-bd/100)*100).toFixed(2),erpPct=Math.round(Math.min(100,Math.max(0,(erp-2.0)/(7.0-2.0)*100)));
   const set=(id,txt,color)=>{const e=$(id);if(e){e.textContent=txt;if(color)e.style.color=color;}};
@@ -1939,21 +1994,16 @@ function render(d){
   const pg=$('pct-grad');if(pg)pg.style.width=erpPct+'%';
   const pn=$('pct-needle');if(pn)pn.style.left=erpPct+'%';
   mc('m-pe',pe.toFixed(2)+'x','万得全A','c-accent');
-  {const bondSubtxt=_prebuiltData?.bond10y?'中国10年期国债·预构建':'中国10年期国债';mc('m-bond',bd.toFixed(2)+'%',bondSubtxt,'c-muted');}
-  {const bondCard=$('mc-bond');if(bondCard){const bdg=bondCard.querySelector('.vbadge');if(bdg){bdg.textContent=_prebuiltData?.bond10y?'AKShare预构建':'公开值';bdg.className='vbadge '+(_prebuiltData?.bond10y?'vb-ok':'vb-est');}}}
+  mc('m-bond',bd.toFixed(2)+'%','中国10年期国债','c-muted');
   mc('m-pb',d.pbRatio.toFixed(1)+'%','阈值10%'+(d.pbRatio>=10?' ⚡':''),d.pbRatio>=10?'c-danger':d.pbRatio>=8?'c-warn':'c-ok');
   ['mc-pe','mc-bond','mc-pb'].forEach(flashMC);
   renderIV(d.iv300,d.ivPct,d.ivSrc);
   const sfv=$('sf-verify');if(sfv&&d.sfData&&d.sfData.length){const sfLast=d.sfData[d.sfData.length-1];
-    const sfIsPrebuilt=_prebuiltData?.m2_monthly&&_prebuiltData.m2_monthly.length>=4;
-    const sfIsLive=d.sfDataIsLive||sfIsPrebuilt;
-    const sfLabel=sfIsLive?'社融存量同比（AKShare口径，与央行差异≈1pp）：':'社融存量增速（央行）：';
-    const sfBadge=sfIsLive?'#dcfce7;color:#166534':'#fef3c7;color:#92400e';
-    const sfBadgeTxt=sfIsPrebuilt?'预构建·每日':'AKShare实时';
-    sfv.innerHTML='<strong>'+sfLabel+'</strong>'
+    const sm=(d.meta&&d.meta.m2_monthly)||META_STATIC;
+    sfv.innerHTML='<strong>社融存量同比（'+esc(sm.source||'无数据')+'）：</strong>'
       +d.sfData.slice(-5).map(x=>x.m+':'+x.g+'%').join(' | ')
       +'<br>最新：'+sfLast.m+' = <strong>'+sfLast.g+'%</strong>'
-      +' <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-family:var(--mono);background:'+sfBadge+'">'+sfBadgeTxt+'</span>';
+      +(sm.note?' <span style="color:#92400e">· '+esc(sm.note)+'</span>':'');
   }
   if(d.impulse&&d.impulse.length){
     const impN=d.impulse[d.impulse.length-1],impP=d.impulse[d.impulse.length-2]||0;
@@ -2001,7 +2051,13 @@ async function loadData(force=false,_isRetry=false){
 function apply(d,fromCache,age){
   try{render(d);}catch(e){console.error('render:',e);}
   // ETF 资金分类流向：不进主缓存 data，故在此独立渲染，确保缓存/实时两条加载路径都触发
-  try{fetchETFCategories().then(ec=>{if(ec)renderETFCategories(ec);}).catch(()=>{});}catch(e){}
+  try{fetchETFCategories().then(w=>{
+    if(!w)return;
+    renderETFCategories(valOf(w));
+    window._ETF_META=metaOf(w);
+    window._META={...(window._META||staticMeta()),etf_categories:window._ETF_META};
+    renderMeta(window._META);
+  }).catch(()=>{});}catch(e){}
   const now=new Date();
   const tstr=[now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
   const dstr=(now.getMonth()+1)+'/'+(now.getDate());
