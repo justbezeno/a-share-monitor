@@ -525,7 +525,7 @@ def fetch_sector_live():
                 ret60 = (closes[-1]/closes[-61]-1)*100
                 today = (closes[-1]/closes[-2]-1)*100
                 return {"n": name, "code": code,
-                        "excess": round(today, 2), "ret60": round(ret60, 2),
+                        "today": round(today, 2), "ret60": round(ret60, 2),
                         "date": str(df['日期'].iloc[-1])[:10]}
             except Exception: return None
 
@@ -538,7 +538,7 @@ def fetch_sector_live():
         out.sort(key=lambda x: x['ret60'], reverse=True)
         d = max(x['date'] for x in out)
         log(f"  ✓ sector_live {len(out)}/{len(items)} 行业，最强 {out[0]['n']} {out[0]['ret60']}% 日期 {d}")
-        return field(out, '申万', d)
+        return field(out, '申万一级指数', d, note='today=最新收盘日涨跌幅，ret60=60日累计涨跌幅')
     except Exception as e:
         log(f"  ✗ sector_live 失败: {e}")
         return fallback('sector_live')
@@ -623,7 +623,14 @@ def fetch_fund_issuance():
         col_share = next(c for c in df.columns if '份额' in c)
         col_type = next((c for c in df.columns if '类型' in c), None)
         if col_type:
-            df = df[df[col_type].astype(str).str.contains('股票|混合', na=False)]
+            # 「基金类型」实际取值（2026-09 实测）：股票型、混合型-偏股/灵活/平衡/偏债、指数型-股票、
+            # 指数型-海外股票、QDII-普通股票/混合偏股/混合平衡/混合灵活/混合债、债券型-混合一级/二级 …
+            # 取含「股票」「混合」的类型，排除偏债类：混合型-偏债、QDII-混合债、债券型-混合一级/二级
+            # （后两者含「混合」二字但属于债券基金，旧筛选 '股票|混合' 会把它们算进偏股新发）。
+            t = df[col_type].astype(str)
+            df = df[t.str.contains('股票|混合', na=False)
+                    & ~t.str.contains('偏债|混合债', na=False)
+                    & ~t.str.startswith('债券型')]
         df = df.dropna(subset=[col_date, col_share]).copy()
         import pandas as pd
         df[col_date] = pd.to_datetime(df[col_date], errors='coerce')
