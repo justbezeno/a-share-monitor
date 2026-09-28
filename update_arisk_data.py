@@ -502,9 +502,11 @@ def fetch_margin():
         log(f"  ✗ margin 失败: {e}")
         return fallback('margin')
 
-# ── 6. 近 7 日成交额 ────────────────────────────────────────
+# ── 6. 近期成交额序列（约 1 个月 / 22 个交易日）──────────────
 # 主源：fetch_turnover() 里交易所的 amount_yi 序列（沪主板A+科创板 + 深主板A+创业板，
-#       不含北交所），驱动「连续7日>2万亿」逃顶信号。
+#       不含北交所），驱动 dashboard 主面板「两市成交额×换手率」走势 + 逃顶信号。
+# 注：字段名沿用历史名 vol_7d（前端 META_KEYS / check_and_update.sh 均按此键取值），
+#     语义已从「近 7 日」放宽为「近约 1 个月」，长度由 turnover 序列决定（当前 22 天）。
 # 兜底：仅当本次交易所数据完全拿不到时，才用新浪指数成交量 × 经验系数估算（is_estimate）。
 def fetch_vol_7d(turnover):
     series = ((turnover or {}).get('value') or {}).get('series') or []
@@ -521,14 +523,18 @@ def fetch_vol_7d(turnover):
     return fallback('vol_7d')
 
 def _vol_7d_sina_estimate():
-    """新浪 stock_zh_index_daily 成交量 × 经验系数（元/股）估算成交额，仅作兜底。"""
+    """新浪 stock_zh_index_daily 成交量 × 经验系数（元/股）估算成交额，仅作兜底。
+
+    长度与主源保持一致（22 个交易日 ≈ 1 个月），否则兜底时图表会突然只剩 7 根柱子。
+    """
     import akshare as ak
+    N = 22
     AMT_FACTOR = {"sh000001": 19.1, "sz399001": 20.8}
-    def _tail7(sym):
-        df = ak.stock_zh_index_daily(symbol=sym).sort_values('date').tail(7).reset_index(drop=True)
+    def _tailN(sym):
+        df = ak.stock_zh_index_daily(symbol=sym).sort_values('date').tail(N).reset_index(drop=True)
         df['date'] = df['date'].astype(str)
         return df
-    sh, sz = _tail7("sh000001"), _tail7("sz399001")
+    sh, sz = _tailN("sh000001"), _tailN("sz399001")
     n = min(len(sh), len(sz))
     out = []
     for i in range(n):
@@ -634,26 +640,31 @@ def _turnover_one_day(d):
     }
 
 def fetch_turnover():
-    """全A换手率最近 7 个交易日序列 = 沪深合计成交额 / 沪深合计A股流通市值 × 100。
+    """全A换手率最近约 1 个月（22 个交易日）序列 = 沪深合计成交额 / 沪深合计A股流通市值 × 100。
 
-    返回 {..最新日字段.., 'avg_pct': 最新值, 'series': [{label,date,pct,amount_yi}, ...×7]}
+    返回 {..最新日字段.., 'avg_pct': 最新值, 'series': [{label,date,pct,amount_yi}, ...×22]}
     series 供 dashboard 主面板"两市成交额×换手率"图表使用（此前该图只能用
     硬编码 9e13 流通市值估算，与真实流通市值有约 8% 偏差）。
+
+    窗口长度：N_DAYS=22 个交易日 ≈ 1 个自然月，足够看出量能的月度趋势；
+    此前只有 7 天，波动被放大、看不出量能中枢，用户明确要求放宽到 1 个月。
     """
+    N_DAYS = 22        # 目标交易日数（≈1 个月）
+    SCAN_DAYS = 60     # 自然日回扫上限：22 交易日约需 31 自然日，长假（春节/国庆）最多再放宽约 10 天
     try:
         from datetime import timedelta
         days, cursor = [], datetime.now()
-        # 往回扫最多 20 个自然日，凑齐 7 个交易日
-        for _ in range(20):
+        # 往回逐自然日扫，凑齐 N_DAYS 个交易日（周末/未发布日会被 _turnover_one_day 抛异常跳过）
+        for _ in range(SCAN_DAYS):
             d = cursor.strftime('%Y%m%d')
             try:
                 days.append(_turnover_one_day(d))
-                if len(days) >= 7: break
+                if len(days) >= N_DAYS: break
             except Exception:
                 pass
             cursor -= timedelta(days=1)
         if not days:
-            log("  ✗ turnover 20 天内无可用交易日数据")
+            log(f"  ✗ turnover {SCAN_DAYS} 天内无可用交易日数据")
             return fallback('turnover')
         days.reverse()                       # 由旧到新
         latest = days[-1]
@@ -846,6 +857,285 @@ def fetch_etf_categories():
         traceback.print_exc()
         return fallback('etf_categories')
 
+# ── 12. 主要指数走势 + 成交量趋势 ────────────────────────────
+# 走势用市场主流指数；成交量刻意统一到"该市场/板块全部股票"口径，便于横向比较。
+# 成交量口径已用交易所官方数据逐日核对（勿随意改动）：
+#   · 上证指数(sh000001) 的 volume = 沪市全部股票成交量。
+#     2026-09-28：新浪 452.35 亿股 vs 上交所《每日成交概况》成交量 453.06 亿股（差 0.16%，B股/时点）。
+#   · 深证成指(sz399001) 与深证综指(sz399106) 的 volume 是**同一条序列**（逐日比对完全相等），
+#     即深市全部股票成交量，故直接沿用深证成指。
+#   · 创业板指(sz399006) 与创业板综(sz399102) 的 volume 同样是同一条序列 = 创业板全部股票成交量。
+#   · 科创50(sh000688) 的 volume **仅 50 只成分股**（2026-09-28：7.41 亿股），
+#     与科创综指(sh000680，全部科创板，42.95 亿股)不是一回事，
+#     所以科创板量能改用科创综指，走势仍用科创50。
+INDEX_DAYS = int(os.environ.get('ARISK_INDEX_DAYS', '60'))
+INDEX_SPECS = [
+    ('sh',  '上证指数', '沪市',   'sh000001', 'sh000001', '沪市全部'),
+    ('sz',  '深证成指', '深市',   'sz399001', 'sz399001', '深市全部'),
+    ('cyb', '创业板指', '创业板', 'sz399006', 'sz399006', '创业板全部'),
+    ('kc',  '科创50',   '科创板', 'sh000688', 'sh000680', '科创板全部（科创综指口径，非科创50成分）'),
+]
+
+def _idx_df(code):
+    """新浪日K（date/open/high/low/close/volume），按日期升序，带进程内缓存。"""
+    import akshare as ak
+    df = _cached_df('idx_' + code, lambda: ak.stock_zh_index_daily(symbol=code))
+    df = df.sort_values('date').reset_index(drop=True)
+    df['date'] = df['date'].astype(str).str.slice(0, 10)
+    return df
+
+def _ret(series, back):
+    """series[-1] 相对 series[-1-back] 的涨跌幅（%）；数据不足返回 None。"""
+    if back <= 0 or len(series) <= back:
+        return None
+    prev = series[-1 - back]
+    if not prev:
+        return None
+    return round((series[-1] / prev - 1) * 100, 2)
+
+def fetch_index_trend():
+    try:
+        n = INDEX_DAYS
+        items, as_of = [], None
+        for key, name, market, pcode, vcode, vlabel in INDEX_SPECS:
+            pdf, vdf = _idx_df(pcode), _idx_df(vcode)
+            if len(pdf) < n + 1:
+                raise ValueError(f"{name} 仅 {len(pdf)} 个交易日，不足 {n + 1}")
+            # 多取一天用于计算 n 日累计涨跌；展示序列只取最近 n 日
+            pdf = pdf.tail(n + 1).reset_index(drop=True)
+            vmap = dict(zip(vdf['date'], vdf['volume']))
+            dates = pdf['date'].tolist()[1:]
+            closes_all = [round(float(x), 2) for x in pdf['close'].tolist()]
+            closes = closes_all[1:]
+            vols = [(round(float(vmap[d]) / 1e8, 2) if vmap.get(d) else None) for d in dates]
+            all_closes = closes
+            last = dates[-1]
+            as_of = last if as_of is None else max(as_of, last)
+
+            v5 = [v for v in vols[-5:] if v]
+            v20 = [v for v in vols[-20:] if v]
+            vol5 = round(sum(v5) / len(v5), 1) if v5 else None
+            vol20 = round(sum(v20) / len(v20), 1) if v20 else None
+            vol_ratio = round(vol5 / vol20, 2) if (vol5 and vol20) else None
+            hi, lo = max(all_closes), min(all_closes)
+            pos = round((all_closes[-1] - lo) / (hi - lo) * 100) if hi > lo else 50
+
+            items.append({
+                "key": key, "name": name, "market": market,
+                "code": pcode, "vol_code": vcode, "vol_label": vlabel,
+                "date": last, "close": all_closes[-1],
+                "chg1d": _ret(all_closes, 1), "chg5d": _ret(all_closes, 5),
+                "chg20d": _ret(all_closes, 20), "chg60d": _ret(closes_all, n),
+                "hi": round(hi, 2), "lo": round(lo, 2), "pos": pos,
+                "vol5": vol5, "vol20": vol20, "vol_ratio": vol_ratio,
+                "dates": dates, "closes": all_closes, "vols": vols,
+            })
+            log(f"  ✓ {name} {last} close={all_closes[-1]} "
+                f"1d={items[-1]['chg1d']}% 20d={items[-1]['chg20d']}% 量比5/20={vol_ratio}")
+        return field({"as_of": as_of, "days": n, "items": items}, '新浪K线', as_of,
+                     note=f'成交量=该市场/板块全部股票成交量（亿股）；科创板用科创综指口径')
+    except Exception as e:
+        log(f"  ✗ index_trend 失败: {e}")
+        traceback.print_exc()
+        return fallback('index_trend')
+
+# ── 13. A股总市值 / GDP（巴菲特指标）────────────────────────
+# 分子：沪深两市月末市价总值（亿元）——中经网转发国家统计局口径，月度。
+# 分母：中国 GDP 滚动四季度（TTM，亿元）。统计局按"累计值"发布（"第1-2季度" = 上半年累计），
+#       先还原成单季，再滚动 4 个季度求和，才与月度频率可比（直接用累计值会因季节性虚高）。
+# 对齐规则：某月的分母只用"该月月底前已发布"的季度，避免前视偏差。
+#   实际发布日（近十年中位）：Q1→4/17、Q2→7/15、Q3→10/18、Q4→次年1/17
+# 注意：分子只含沪深两市（不含北交所、不含港股/境外上市中概股），口径见卡片说明。
+MKT_MONTHS = int(os.environ.get('ARISK_MKT_MONTHS', '120'))
+_GDP_PUB = {1: (4, 17), 2: (7, 15), 3: (10, 18), 4: (1, 17)}
+
+def _cn_month(s):
+    """'2026年09月份' -> (2026, 9)；解析失败返回 None"""
+    import re
+    m = re.match(r'\s*(\d{4})\s*年\s*(\d{1,2})\s*月', str(s))
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+def _cn_quarter(s):
+    """'2026年第1-2季度' -> (2026, 2)（累计口径，即累计至第 2 季度）"""
+    import re
+    m = re.match(r'\s*(\d{4})\s*年第\s*(?:1\s*-\s*)?(\d)\s*季度', str(s))
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+def fetch_mktcap_gdp():
+    try:
+        import akshare as ak
+        # ① 沪深两市月末市价总值（月度，亿元）
+        cap = _cached_df('mktcap', ak.macro_china_stock_market_cap)
+        rows = []
+        for _, r in cap.iterrows():
+            ym = _cn_month(r.get('数据日期'))
+            if not ym:
+                continue
+            try:
+                sh = float(r['市价总值-上海']); sz = float(r['市价总值-深圳'])
+            except (TypeError, ValueError, KeyError):
+                continue          # 当月未结束 → 市值列为 NaN，跳过（只留完整月）
+            if sh > 0 and sz > 0:
+                rows.append((ym, sh + sz))
+        if not rows:
+            raise ValueError('沪深市价总值序列为空')
+        rows.sort(key=lambda x: x[0])
+
+        # ② 中国 GDP 累计值 -> 单季
+        g = _cached_df('cn_gdp', ak.macro_china_gdp)
+        cum = {}
+        for _, r in g.iterrows():
+            yq = _cn_quarter(r.get('季度'))
+            if not yq:
+                continue
+            try:
+                v = float(r['国内生产总值-绝对值'])
+            except (TypeError, ValueError, KeyError):
+                continue
+            if v > 0:
+                cum[yq] = v
+        single = {}
+        for (y, q), v in cum.items():
+            if q == 1:
+                single[(y, q)] = v
+            else:
+                p = cum.get((y, q - 1))
+                if p is not None and v > p:      # v<p 视为数据异常，丢弃该季
+                    single[(y, q)] = v - p
+        if len(single) < 8:
+            raise ValueError(f'单季 GDP 仅 {len(single)} 期，不足以算 TTM')
+
+        def _ttm(y, q):
+            tot = 0.0
+            for i in range(4):
+                qq, yy = q - i, y
+                while qq <= 0:
+                    qq += 4; yy -= 1
+                v = single.get((yy, qq))
+                if v is None:
+                    return None
+                tot += v
+            return tot
+
+        def _pub(y, q):
+            m, d = _GDP_PUB[q]
+            return (y + 1, m, d) if q == 4 else (y, m, d)
+
+        qs = sorted(single.keys())
+
+        def _ttm_asof(Y, M):
+            """该月月底（按 28 日近似）已发布的最新季度 -> (TTM, 季度标签)"""
+            best = None
+            for y, q in qs:
+                if _pub(y, q) <= (Y, M, 28):
+                    best = (y, q)
+                else:
+                    break                       # qs 与发布日同序，可提前结束
+            if best is None:
+                return None, None
+            return _ttm(*best), best
+
+        data = []
+        for (Y, M), cap_yi in rows:
+            t, bq = _ttm_asof(Y, M)
+            if not t:
+                continue
+            data.append({'ym': f'{Y:04d}-{M:02d}', 'mktcap_yi': round(cap_yi, 1),
+                         'gdp_ttm_yi': round(t, 1), 'gdp_q': f'{bq[0]}Q{bq[1]}',
+                         'ratio': round(cap_yi / t * 100, 2)})
+        if len(data) < 24:
+            raise ValueError(f'可比月份仅 {len(data)} 个，样本不足')
+
+        ratios = [d['ratio'] for d in data]
+        cur, n = data[-1], len(ratios)
+        w = ratios[-min(120, n):]
+        pct_all = round(sum(1 for v in ratios if v <= cur['ratio']) / n * 100)
+        pct_10y = round(sum(1 for v in w if v <= cur['ratio']) / len(w) * 100)
+        show = data[-MKT_MONTHS:]
+
+        log(f"  ✓ 巴菲特指标 {cur['ym']} = {cur['ratio']}% "
+            f"（市值 {cur['mktcap_yi']/1e4:.1f}万亿 / GDP-TTM {cur['gdp_ttm_yi']/1e4:.1f}万亿，"
+            f"分母 {cur['gdp_q']}，全历史分位 {pct_all}%，样本 {n} 月/自 {data[0]['ym']}）")
+        return field({
+            'ratio': cur['ratio'], 'month': cur['ym'],
+            'mktcap_yi': cur['mktcap_yi'], 'gdp_ttm_yi': cur['gdp_ttm_yi'],
+            'gdp_quarter': cur['gdp_q'],
+            'pct_all': pct_all, 'pct_10y': pct_10y,
+            'mean_all': round(sum(ratios) / n, 2), 'mean_10y': round(sum(w) / len(w), 2),
+            'lo_all': round(min(ratios), 2), 'hi_all': round(max(ratios), 2),
+            'hist_n': n, 'hist_from': data[0]['ym'],
+            'months': [d['ym'] for d in show],
+            'ratios': [d['ratio'] for d in show],
+            'mktcaps': [round(d['mktcap_yi'] / 1e4, 2) for d in show],
+            'gdps': [round(d['gdp_ttm_yi'] / 1e4, 2) for d in show],
+        }, '中经网/国家统计局', cur['ym'],
+            note='分子=沪深两市月末市价总值（不含北交所）；分母=GDP滚动四季（TTM），按季度发布日对齐，避免前视')
+    except Exception as e:
+        log(f"  ✗ mktcap_gdp 失败: {e}")
+        traceback.print_exc()
+        return fallback('mktcap_gdp')
+
+# ── 14. 美股主要指数走势 + 成交量趋势 ────────────────────────
+# 数据源：新浪美股指数日K（index_us_stock_sina），date/open/high/low/close/volume。
+# volume 为该指数所覆盖标的的当日成交股数（标普500=成分股合计，纳斯达克综合=纳指全市场），
+# 覆盖范围不同 → 量能只在本指数内纵向比较，不跨指数比大小。
+# 另：美股与 A 股交易日/时区不同，最后一根K线可能早于 A 股 1 个交易日，卡片按各自 as_of 标注。
+US_INDEX_SPECS = [
+    ('spx',  '标普500',      'S&P 500', '.INX',  '标普500 成分股合计'),
+    ('ixic', '纳斯达克综合', 'NASDAQ',  '.IXIC', '纳斯达克市场合计'),
+]
+
+def _us_df(sym):
+    import akshare as ak
+    df = _cached_df('us_' + sym, lambda: ak.index_us_stock_sina(symbol=sym))
+    df = df.sort_values('date').reset_index(drop=True)
+    df['date'] = df['date'].astype(str).str.slice(0, 10)
+    return df
+
+def fetch_us_index_trend():
+    try:
+        n = INDEX_DAYS
+        items, as_of = [], None
+        for key, name, market, code, vlabel in US_INDEX_SPECS:
+            df = _us_df(code)
+            if len(df) < n + 1:
+                raise ValueError(f"{name} 仅 {len(df)} 个交易日，不足 {n + 1}")
+            df = df.tail(n + 1).reset_index(drop=True)   # 多取一天用于算 n 日涨跌
+            vmap = dict(zip(df['date'], df['volume']))
+            dates = df['date'].tolist()[1:]
+            closes_all = [round(float(x), 2) for x in df['close'].tolist()]
+            vols = [(round(float(vmap[d]) / 1e8, 2) if vmap.get(d) else None) for d in dates]
+            last = dates[-1]
+            as_of = last if as_of is None else max(as_of, last)
+
+            v5 = [v for v in vols[-5:] if v]
+            v20 = [v for v in vols[-20:] if v]
+            vol5 = round(sum(v5) / len(v5), 1) if v5 else None
+            vol20 = round(sum(v20) / len(v20), 1) if v20 else None
+            vol_ratio = round(vol5 / vol20, 2) if (vol5 and vol20) else None
+            hi, lo = max(closes_all[1:]), min(closes_all[1:])
+            pos = round((closes_all[-1] - lo) / (hi - lo) * 100) if hi > lo else 50
+
+            items.append({
+                "key": key, "name": name, "market": market,
+                "code": code, "vol_code": code, "vol_label": vlabel,
+                "date": last, "close": closes_all[-1],
+                "chg1d": _ret(closes_all, 1), "chg5d": _ret(closes_all, 5),
+                "chg20d": _ret(closes_all, 20), "chg60d": _ret(closes_all, n),
+                "hi": round(hi, 2), "lo": round(lo, 2), "pos": pos,
+                "vol5": vol5, "vol20": vol20, "vol_ratio": vol_ratio,
+                "dates": dates, "closes": closes_all, "vols": vols,
+                "vol_unit": '亿股',
+            })
+            log(f"  ✓ {name} {last} close={closes_all[-1]} "
+                f"1d={items[-1]['chg1d']}% 20d={items[-1]['chg20d']}% 量比5/20={vol_ratio}")
+        return field({"as_of": as_of, "days": n, "items": items}, '新浪美股K线', as_of,
+                     note='美股交易日/时区与 A 股不同，最后K线可能早 1 个交易日；量能仅本指数内纵向比较')
+    except Exception as e:
+        log(f"  ✗ us_index_trend 失败: {e}")
+        traceback.print_exc()
+        return fallback('us_index_trend')
+
 # ── 单段超时保护 ─────────────────────────────────────────────
 # AKShare 多数接口不带超时，东财偶发"连上但不返回"会让整次更新无限挂起
 # （实测 stock_zt_pool_em 卡住 >13 分钟，launchd 下一小时再叠一个进程）。
@@ -879,32 +1169,38 @@ def main():
         "generated_date": datetime.now().strftime('%Y-%m-%d'),
     }
 
-    log("[1/13] 抓 社融存量同比 ...")
+    log("[1/16] 抓 社融存量同比 ...")
     out['credit_yoy'] = run_section('credit_yoy', fetch_credit_yoy)
-    log("[2/13] 抓 10Y 国债 ...")
+    log("[2/16] 抓 10Y 国债 ...")
     out['bond10y'] = run_section('bond10y', fetch_bond10y)
-    log("[3/13] 抓 沪深300 PE ...")
+    log("[3/16] 抓 沪深300 PE ...")
     out['pe_300'] = run_section('pe_300', fetch_pe_300)
-    log("[4/13] 算 ERP 近5年真实分位 ...")
+    log("[4/16] 算 ERP 近5年真实分位 ...")
     out['erp_history'] = run_section('erp_history', fetch_erp_history)
-    log("[5/13] 抓 破净率 ...")
+    log("[5/16] 抓 破净率 ...")
     out['below_net_asset'] = run_section('below_net_asset', fetch_below_net_asset)
-    log("[6/13] 算 HV30 ...")
+    log("[6/16] 算 HV30 ...")
     out['hv30'] = run_section('hv30', fetch_hv30)
-    log("[7/13] 抓 两融 ...")
+    log("[7/16] 抓 两融 ...")
     out['margin'] = run_section('margin', fetch_margin)
-    log("[8/13] 抓 全A 换手率 / 成交额（交易所）...")
+    log("[8/16] 抓 全A 换手率 / 成交额（交易所）...")
     out['turnover'] = run_section('turnover', fetch_turnover)
-    log("[9/13] 整理 近7日成交额 ...")
+    log("[9/16] 整理 成交额序列（近约 1 个月，复用 turnover）...")
     out['vol_7d'] = run_section('vol_7d', lambda: fetch_vol_7d(out['turnover']))
-    log("[10/13] 抓 近5日涨跌停 ...")
+    log("[10/16] 抓 近5日涨跌停 ...")
     out['limit_7d'] = run_section('limit_7d', fetch_limit_7d)
-    log("[11/13] 抓 申万31行业60日 ...")
+    log("[11/16] 抓 申万31行业60日 ...")
     out['sector_live'] = run_section('sector_live', fetch_sector_live)
-    log("[12/13] 抓 偏股基金新发 ...")
+    log("[12/16] 抓 偏股基金新发 ...")
     out['fund_issuance'] = run_section('fund_issuance', fetch_fund_issuance)
-    log("[13/13] 抓 ETF 资金分类流向（沪市60日）...")
+    log("[13/16] 抓 ETF 资金分类流向（沪市60日）...")
     out['etf_categories'] = run_section('etf_categories', fetch_etf_categories)
+    log("[14/16] 抓 主要指数走势 + 成交量趋势 ...")
+    out['index_trend'] = run_section('index_trend', fetch_index_trend)
+    log("[15/16] 算 A股总市值/GDP（巴菲特指标）...")
+    out['mktcap_gdp'] = run_section('mktcap_gdp', fetch_mktcap_gdp)
+    log("[16/16] 抓 美股主要指数走势 + 成交量趋势 ...")
+    out['us_index_trend'] = run_section('us_index_trend', fetch_us_index_trend)
 
     fields = {k: v for k, v in out.items() if _is_wrapped(v)}
     missing = [k for k, v in fields.items() if v['value'] is None]

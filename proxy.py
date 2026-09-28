@@ -230,6 +230,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
         "/margin": "margin",
         "/sf": "credit_yoy",
         "/fund": "fund_issuance",
+        "/index": "index_trend",
+        "/mktcap": "mktcap_gdp",
+        "/usindex": "us_index_trend",
     }
 
     def _semantic(self, path):

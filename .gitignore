@@ -20,6 +20,10 @@ miaoxiang_doc.md
 # 系统杂项
 .DS_Store
 
+# 本地审计/临时目录（仅本机排查用，不提交）
+.audit/
+.piptmp/
+
 # ERP 回测缓存与明细（backtest_erp.py 生成，可随时重跑）
 erp_bt_cache/
 erp_bt_monthly.csv
