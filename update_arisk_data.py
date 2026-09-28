@@ -38,9 +38,11 @@ def field(value, source, date, is_estimate=False, stale=False, note=None):
 def _is_wrapped(v):
     return isinstance(v, dict) and 'value' in v and 'stale' in v
 
-def prev_value(key):
-    """旧 JSON 中某字段的 value（兼容升级前未包装的旧结构）"""
+def prev_value(key, legacy_key=None):
+    """旧 JSON 中某字段的 value（兼容升级前未包装的旧结构 / 旧字段名）"""
     v = PREV.get(key)
+    if v is None and legacy_key:
+        v = PREV.get(legacy_key)
     return v.get('value') if _is_wrapped(v) else v
 
 def _legacy_date(v):
@@ -51,9 +53,12 @@ def _legacy_date(v):
         return v[-1].get('date')
     return None
 
-def fallback(key):
-    """本次抓取失败 → 复用旧值，stale=True，保留旧值原来的 date/source。"""
+def fallback(key, legacy_key=None):
+    """本次抓取失败 → 复用旧值，stale=True，保留旧值原来的 date/source。
+    legacy_key：字段改名前的旧名，旧 JSON 里只有旧名时从它迁移。"""
     v = PREV.get(key)
+    if v is None and legacy_key:
+        v = PREV.get(legacy_key)
     if v is None or (_is_wrapped(v) and v.get('value') is None):
         log(f"  ✗ {key} 无旧值可复用")
         return field(None, None, None, stale=True)
@@ -63,6 +68,23 @@ def fallback(key):
     out['stale'] = True
     log(f"  ↩ {key} 复用旧值（stale，数据停留在 {out.get('date')}）")
     return out
+
+_DF_CACHE = {}
+def _cached_df(key, loader):
+    if key not in _DF_CACHE:
+        _DF_CACHE[key] = loader()
+    return _DF_CACHE[key]
+
+def _pe300_df():
+    import akshare as ak
+    return _cached_df('pe300', lambda: ak.stock_index_pe_lg(symbol='沪深300'))
+
+def _bond_df():
+    import akshare as ak
+    return _cached_df('bond', lambda: ak.bond_zh_us_rate())
+
+def _bond_col(df):
+    return next(c for c in df.columns if '中国' in c and '10年' in c and '差' not in c)
 
 # ── 1. 社融存量同比 ──────────────────────────────────────────
 # 主源：央行（PBoC）官网『社会融资规模存量统计表』，其“增速（%）”列即社融存量同比。
@@ -119,7 +141,7 @@ def pboc_year_tsf(year):
 def _merge_pboc(fresh):
     """新抓的央行月份并入历史中已是央行口径(s=pboc)的月份，按月去重排序取后12个。
     刻意不混入旧累计法的月份，避免在口径接缝处产生虚假的一阶导跳变。"""
-    cached = {e['m']: e for e in (prev_value('m2_monthly') or [])
+    cached = {e['m']: e for e in (prev_value('credit_yoy', 'm2_monthly') or [])
               if isinstance(e, dict) and e.get('s') == 'pboc'}
     for e in fresh:
         cached[e['m']] = e
@@ -194,14 +216,13 @@ def fetch_credit_yoy():
                          note='M2 同比替代社融，信号无效（IC≈0）')
     except Exception as e:
         log(f"  ✗ M2 也失败: {e}")
-    return fallback('m2_monthly')
+    return fallback('credit_yoy', 'm2_monthly')
 
 # ── 2. 10Y 国债 ──────────────────────────────────────────
 def fetch_bond10y():
     try:
-        import akshare as ak
-        df = ak.bond_zh_us_rate()
-        col = next(c for c in df.columns if '中国' in c and '10年' in c and '差' not in c)
+        df = _bond_df()
+        col = _bond_col(df)
         df = df[['日期', col]].dropna().sort_values('日期').tail(30)
         hist = [{"d": f"{d.month}/{d.day}", "v": round(float(v), 4)}
                 for d, v in zip(__import__('pandas').to_datetime(df['日期']), df[col])]
@@ -216,8 +237,7 @@ def fetch_bond10y():
 # ── 3. 沪深300 PE ─────────────────────────────────────────
 def fetch_pe_300():
     try:
-        import akshare as ak
-        df = ak.stock_index_pe_lg(symbol='沪深300')
+        df = _pe300_df()
         pe = round(float(df.iloc[-1]['滚动市盈率']), 2)
         d = str(df.iloc[-1]['日期'])[:10]
         log(f"  ✓ pe_300 = {pe}（{d}）")
@@ -225,6 +245,69 @@ def fetch_pe_300():
     except Exception as e:
         log(f"  ✗ pe_300 失败: {e}")
         return fallback('pe_300')
+
+# ── 3b. ERP 近 5 年真实分位（仅展示，不参与打分）─────────────────
+# ERP = 1/PE(沪深300 TTM) − r10Y。乐咕乐股的沪深300 历史 PE 为「月末点 + 最新一日」，
+# 故序列为月度；每个 PE 日期向前对齐最近一个有 10Y 国债数据的交易日。
+def fetch_erp_history():
+    try:
+        import pandas as pd
+        pe = _pe300_df()[['日期', '滚动市盈率']].copy()
+        pe['日期'] = pd.to_datetime(pe['日期'])
+        pe = pe.dropna().sort_values('日期')
+        bd = _bond_df()
+        col = _bond_col(bd)
+        bd = bd[['日期', col]].dropna().copy()
+        bd['日期'] = pd.to_datetime(bd['日期'])
+        bd = bd.sort_values('日期')
+        m = pd.merge_asof(pe, bd, on='日期', direction='backward',
+                          tolerance=pd.Timedelta(days=10)).dropna()
+        m['erp'] = 100 / m['滚动市盈率'] - m[col]
+        w = m[m['日期'] >= m['日期'].iloc[-1] - pd.DateOffset(years=5)]
+        cur = float(w['erp'].iloc[-1])
+        pct = round(float((w['erp'] <= cur).mean()) * 100)
+        d = w['日期'].iloc[-1].strftime('%Y-%m-%d')
+        series = [{"d": x.strftime('%Y-%m-%d'), "v": round(float(v), 2)}
+                  for x, v in zip(w['日期'], w['erp'])]
+        log(f"  ✓ erp_history 当前 {cur:.2f}% 5年真实分位 {pct}%（{len(w)} 个月度样本，{d}）")
+        return field({"current": round(cur, 2), "pct": pct, "n": len(w), "freq": "月",
+                      "series": series}, '乐咕乐股+东财', d,
+                     note='沪深300 滚动PE（乐咕乐股，月末点）与中国10Y国债（东财）按日期对齐，近5年')
+    except Exception as e:
+        log(f"  ✗ erp_history 失败: {e}")
+        traceback.print_exc()
+        return fallback('erp_history')
+
+# ── 3c. 破净率（全部A股）─────────────────────────────────────
+# 乐咕乐股 stock_a_below_net_asset_statistics：列 date / below_net_asset / total_company /
+# below_net_asset_ratio，其中 ratio 为小数（0.0814 = 8.14%），日频，自 2005 年起。
+def fetch_below_net_asset():
+    try:
+        import akshare as ak, pandas as pd
+        df = ak.stock_a_below_net_asset_statistics(symbol="全部A股")
+        df = df[['date', 'below_net_asset', 'total_company', 'below_net_asset_ratio']].dropna().copy()
+        df['date'] = pd.to_datetime(df['date'])
+        df = df.sort_values('date')
+        df['pct'] = df['below_net_asset_ratio'].astype(float) * 100
+        last = df.iloc[-1]
+        w = df[df['date'] >= last['date'] - pd.DateOffset(years=5)]
+        cur = float(last['pct'])
+        pct5y = round(float((w['pct'] <= cur).mean()) * 100)
+        wk = w.iloc[::5]                                    # 画图用，约每周一个点
+        if wk['date'].iloc[-1] != last['date']:
+            wk = pd.concat([wk, w.tail(1)])
+        series = [{"d": x.strftime('%Y-%m-%d'), "v": round(float(v), 2)}
+                  for x, v in zip(wk['date'], wk['pct'])]
+        d = last['date'].strftime('%Y-%m-%d')
+        log(f"  ✓ below_net_asset {cur:.2f}%（{int(last['below_net_asset'])}/{int(last['total_company'])}）"
+            f" 5年分位 {pct5y}% 日期 {d}")
+        return field({"ratio": round(cur, 2), "count": int(last['below_net_asset']),
+                      "total": int(last['total_company']), "pct5y": pct5y, "series": series},
+                     '乐咕乐股', d, note='全部A股，按乐咕乐股统计口径（股价低于每股净资产的公司占比）')
+    except Exception as e:
+        log(f"  ✗ below_net_asset 失败: {e}")
+        traceback.print_exc()
+        return fallback('below_net_asset')
 
 # ── 4. HS300 HV30 ──────────────────────────────────────────
 def fetch_hv30():
@@ -317,39 +400,42 @@ def fetch_margin():
         return fallback('margin')
 
 # ── 6. 近 7 日成交额 ────────────────────────────────────────
-def fetch_vol_7d():
-    """新浪源 stock_zh_index_daily + 经验换算系数（同 proxy.py 实现，规避东财 TLS 限制）"""
+# 主源：fetch_turnover() 里交易所的 amount_yi 序列（沪主板A+科创板 + 深主板A+创业板，
+#       不含北交所），驱动「连续7日>2万亿」逃顶信号。
+# 兜底：仅当本次交易所数据完全拿不到时，才用新浪指数成交量 × 经验系数估算（is_estimate）。
+def fetch_vol_7d(turnover):
+    series = ((turnover or {}).get('value') or {}).get('series') or []
+    if series and not turnover.get('stale'):
+        out = [{"d": x['label'], "date": x['date'], "v": x['amount_yi']} for x in series]
+        log(f"  ✓ vol_7d {len(out)} 天（沪深交易所），最新 {out[-1]['date']} {out[-1]['v']} 亿")
+        return field(out, '沪深交易所', out[-1]['date'],
+                     note='沪主板A+科创板 + 深主板A+创业板，不含北交所')
+    log("  ⚠ vol_7d 本次交易所数据不可得，尝试新浪估算兜底")
     try:
-        import akshare as ak
-        AMT_FACTOR = {"sh000001": 19.1, "sz399001": 20.8}
-        def _close_vol(sym):
-            df = ak.stock_zh_index_daily(symbol=sym).sort_values('date').tail(7).reset_index(drop=True)
-            df['date'] = df['date'].astype(str)
-            return df
-        sh = _close_vol("sh000001")
-        sz = _close_vol("sz399001")
-        n = min(len(sh), len(sz))
-        out = []
-        for i in range(n):
-            d = sh.iloc[i]['date']
-            # 估算成交额（亿）= close × volume(股) × factor / 1e8
-            amt_sh = float(sh.iloc[i]['close']) * float(sh.iloc[i]['volume']) * AMT_FACTOR['sh000001'] / 1e8
-            amt_sz = float(sz.iloc[i]['close']) * float(sz.iloc[i]['volume']) * AMT_FACTOR['sz399001'] / 1e8
-            # 上面那个估算偏大；真正实测：amt ≈ volume(股) × avgPrice ≈ volume × close / 100
-            # 实际：沪深两市日成交≈ 1-2 万亿，volume sh000001 在 60-80 亿股，close ~4000 → close*vol=2.5e14
-            # 简化：实际 amount/volume ratio 实测大概是 19-21 (元/股 平均价位)
-            # 用经验系数：amt = volume × factor (yuan)，factor 取上面 AMT_FACTOR
-            amt_sh = float(sh.iloc[i]['volume']) * AMT_FACTOR['sh000001'] / 1e8
-            amt_sz = float(sz.iloc[i]['volume']) * AMT_FACTOR['sz399001'] / 1e8
-            total = amt_sh + amt_sz
-            out.append({"d": f"{int(d[5:7])}/{int(d[8:10])}", "v": int(round(total))})
-        log(f"  ✓ vol_7d {len(out)} 天（新浪估算），最新 {out[-1]['v']} 亿")
-        return field(out, '新浪估算', sh.iloc[n-1]['date'][:10], is_estimate=True,
-                     note='指数成交量 × 经验系数估算')
+        return _vol_7d_sina_estimate()
     except Exception as e:
-        log(f"  ✗ vol_7d 失败: {e}")
-        traceback.print_exc()
-        return fallback('vol_7d')
+        log(f"  ✗ vol_7d 新浪估算也失败: {e}")
+    return fallback('vol_7d')
+
+def _vol_7d_sina_estimate():
+    """新浪 stock_zh_index_daily 成交量 × 经验系数（元/股）估算成交额，仅作兜底。"""
+    import akshare as ak
+    AMT_FACTOR = {"sh000001": 19.1, "sz399001": 20.8}
+    def _tail7(sym):
+        df = ak.stock_zh_index_daily(symbol=sym).sort_values('date').tail(7).reset_index(drop=True)
+        df['date'] = df['date'].astype(str)
+        return df
+    sh, sz = _tail7("sh000001"), _tail7("sz399001")
+    n = min(len(sh), len(sz))
+    out = []
+    for i in range(n):
+        d = sh.iloc[i]['date'][:10]
+        total = (float(sh.iloc[i]['volume']) * AMT_FACTOR['sh000001']
+                 + float(sz.iloc[i]['volume']) * AMT_FACTOR['sz399001']) / 1e8
+        out.append({"d": f"{int(d[5:7])}/{int(d[8:10])}", "date": d, "v": int(round(total))})
+    log(f"  ⚠ vol_7d {len(out)} 天（新浪估算兜底），最新 {out[-1]['v']} 亿")
+    return field(out, '新浪估算', out[-1]['date'], is_estimate=True,
+                 note='交易所数据不可得时的兜底：指数成交量 × 经验系数，非真实成交额')
 
 # ── 7. 近 5 日涨跌停 ─────────────────────────────────────
 def fetch_limit_7d():
@@ -427,6 +513,10 @@ def _turnover_one_day(d):
     sz_a = sz[sz['证券类别'].isin(['主板A股', '创业板A股'])]
     sz_amt = float(sz_a['成交金额'].sum()) / 1e8
     sz_cap = float(sz_a['流通市值'].sum()) / 1e8
+    # 收盘后两所发布时间不同：深交所当日汇总可能晚于上交所。任一侧缺失时整天作废，
+    # 否则会写入只含半个市场的成交额/换手率（实测：沪 8053 亿 + 深 0）。
+    if min(sh_amt, sh_cap, sz_amt, sz_cap) <= 0:
+        raise ValueError(f"{d} 交易所数据不完整：沪 {sh_amt:.0f}/{sh_cap:.0f} 深 {sz_amt:.0f}/{sz_cap:.0f} 亿")
     total_amt, total_cap = sh_amt + sz_amt, sh_cap + sz_cap
     return {
         "date": f"{d[:4]}-{d[4:6]}-{d[6:8]}",
@@ -634,27 +724,31 @@ def main():
         "generated_date": datetime.now().strftime('%Y-%m-%d'),
     }
 
-    log("[1/11] 抓 社融存量同比 / M2 ...")
-    out['m2_monthly'] = fetch_credit_yoy()
-    log("[2/11] 抓 10Y 国债 ...")
+    log("[1/13] 抓 社融存量同比 ...")
+    out['credit_yoy'] = fetch_credit_yoy()
+    log("[2/13] 抓 10Y 国债 ...")
     out['bond10y'] = fetch_bond10y()
-    log("[3/11] 抓 沪深300 PE ...")
+    log("[3/13] 抓 沪深300 PE ...")
     out['pe_300'] = fetch_pe_300()
-    log("[4/11] 算 HV30 ...")
+    log("[4/13] 算 ERP 近5年真实分位 ...")
+    out['erp_history'] = fetch_erp_history()
+    log("[5/13] 抓 破净率 ...")
+    out['below_net_asset'] = fetch_below_net_asset()
+    log("[6/13] 算 HV30 ...")
     out['hv30'] = fetch_hv30()
-    log("[5/11] 抓 两融 ...")
+    log("[7/13] 抓 两融 ...")
     out['margin'] = fetch_margin()
-    log("[6/11] 抓 近7日成交额 ...")
-    out['vol_7d'] = fetch_vol_7d()
-    log("[7/11] 抓 近5日涨跌停 ...")
-    out['limit_7d'] = fetch_limit_7d()
-    log("[8/11] 抓 申万31行业60日 ...")
-    out['sector_live'] = fetch_sector_live()
-    log("[9/11] 抓 全A 换手率 ...")
+    log("[8/13] 抓 全A 换手率 / 成交额（交易所）...")
     out['turnover'] = fetch_turnover()
-    log("[10/11] 抓 偏股基金新发 ...")
+    log("[9/13] 整理 近7日成交额 ...")
+    out['vol_7d'] = fetch_vol_7d(out['turnover'])
+    log("[10/13] 抓 近5日涨跌停 ...")
+    out['limit_7d'] = fetch_limit_7d()
+    log("[11/13] 抓 申万31行业60日 ...")
+    out['sector_live'] = fetch_sector_live()
+    log("[12/13] 抓 偏股基金新发 ...")
     out['fund_issuance'] = fetch_fund_issuance()
-    log("[11/11] 抓 ETF 资金分类流向（沪市60日）...")
+    log("[13/13] 抓 ETF 资金分类流向（沪市60日）...")
     out['etf_categories'] = fetch_etf_categories()
 
     fields = {k: v for k, v in out.items() if _is_wrapped(v)}

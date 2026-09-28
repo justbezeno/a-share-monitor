@@ -42,7 +42,8 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
 .erp-formula{font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.9}
 .erp-val{font-family:var(--mono);font-size:24px;font-weight:700;margin-top:2px}
 .pct-track{height:7px;background:var(--bg3);border-radius:4px;position:relative;overflow:visible}
-.pct-grad{height:100%;border-radius:4px;background:linear-gradient(90deg,#16a34a 0%,#eab308 60%,#dc2626 100%)}
+.pct-grad{height:100%;border-radius:4px;background:linear-gradient(90deg,#dc2626 0%,#eab308 40%,#16a34a 100%)}
+.erp-real{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1;margin-top:8px}
 .pct-needle{position:absolute;top:-5px;width:3px;height:17px;background:#1a202c;border-radius:2px;transform:translateX(-50%);box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left 1s ease}
 .pct-ticks{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);font-family:var(--mono);margin-top:4px}
 .erp-pct-big{font-family:var(--mono);font-size:32px;font-weight:700;line-height:1}
@@ -185,7 +186,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
   <div class="erp-banner fi">
     <div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:3px">股权风险溢价</div>
-      <div class="erp-formula">ERP = 1/PE(TTM) − r<sub>10Y</sub> = <span id="erp-detail">1/16.87 − 1.78%</span></div>
+      <div class="erp-formula">ERP = 1/PE(沪深300 TTM) − r<sub>10Y</sub> = <span id="erp-detail">--</span></div>
       <div style="margin-top:6px;display:flex;align-items:baseline;gap:8px">
         <span style="font-size:11px;color:var(--muted)">当前 ERP</span>
         <span class="erp-val c-ok" id="erp-val">4.15%</span>
@@ -193,21 +194,26 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
       </div>
     </div>
     <div>
-      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:5px">5年历史分位数</div>
-      <div class="pct-track"><div class="pct-grad" id="pct-grad" style="width: 43%;"></div><div class="pct-needle" id="pct-needle" style="left: 43%;"></div></div>
-      <div class="pct-ticks"><span>0%</span><span>低</span><span>50%</span><span>偏高</span><span style="color:var(--danger)">90%超级底▶</span><span>100%</span></div>
+      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:5px">ERP 位置（2%–7% 区间线性映射，决策打分用）</div>
+      <div class="pct-track"><div class="pct-grad" style="width:100%"></div><div class="pct-needle" id="pct-needle" style="left: 43%;"></div></div>
+      <div class="pct-ticks"><span style="color:var(--danger)">◀贵 2%</span><span>3%</span><span>4%</span><span>5%</span><span>6%</span><span style="color:var(--ok)">7% 便宜▶</span></div>
+      <div style="position:relative;height:70px;margin-top:8px"><canvas id="c-erp-hist"></canvas></div>
     </div>
-    <div style="text-align:right"><div class="erp-pct-big c-ok" id="erp-pct">43%</div><div class="erp-pct-sub">5年分位</div></div>
+    <div style="text-align:right">
+      <div class="erp-pct-big c-ok" id="erp-pct">--</div><div class="erp-pct-sub">ERP 位置（2%–7% 区间）· 打分用</div>
+      <div class="erp-real c-muted" id="erp-real-pct">--</div><div class="erp-pct-sub">5年真实分位 · 仅展示 <span class="vbadge" data-meta="erp_history"></span></div>
+    </div>
   </div>
   <div class="fnote fi" style="animation-delay:.03s;margin-top:-6px;margin-bottom:1rem">
     <strong>ERP 解读</strong>
-    <div class="fn-item sell"><span class="fn-danger">🔴 逃顶：</span> ERP分位&lt;20%，股票极贵，减仓信号。</div>
-    <div class="fn-item buy"><span class="fn-ok">🟢 趋势：</span> ERP分位&gt;70%并开始回落，安全买入区域。</div>
+    <div class="fn-item sell"><span class="fn-danger">🔴 逃顶：</span> ERP 位置&lt;20%（ERP&lt;3%），股票极贵，减仓信号。</div>
+    <div class="fn-item buy"><span class="fn-ok">🟢 趋势：</span> ERP 位置&gt;70%（ERP&gt;5.5%）并开始回落，安全买入区域。</div>
+    <div class="fn-item">「ERP 位置」= (ERP−2%)/(7%−2%) 的线性映射，是决策模型打分口径，<strong>不是历史分位</strong>；「5年真实分位」按近5年月度 ERP 序列计算，仅供对照。</div>
   </div>
   <div class="metrics fi" style="animation-delay:.05s">
-    <div class="mc just-updated" id="mc-pe"><div class="mc-l">万得全A PE <span class="vbadge" data-meta="pe_300"></span></div><div class="mc-v c-accent" id="m-pe">16.87x</div><div class="mc-s" id="m-pe-s">万得全A</div></div>
+    <div class="mc just-updated" id="mc-pe"><div class="mc-l">沪深300 PE(TTM) <span class="vbadge" data-meta="pe_300"></span></div><div class="mc-v c-accent" id="m-pe">--</div><div class="mc-s" id="m-pe-s">沪深300 滚动市盈率</div></div>
     <div class="mc just-updated" id="mc-bond"><div class="mc-l">10Y国债 <span class="vbadge" data-meta="bond10y"></span></div><div class="mc-v c-muted" id="m-bond">1.78%</div><div class="mc-s" id="m-bond-s">中国10年期国债</div></div>
-    <div class="mc just-updated" id="mc-pb"><div class="mc-l">破净率 <span class="vbadge" data-meta="pb_ratio"></span></div><div class="mc-v c-warn" id="m-pb">9.1%</div><div class="mc-s" id="m-pb-s">阈值10%</div><div class="mc-fn">超过<strong style="color:var(--danger)">10–15%</strong>历史上为大熊市底部。</div></div>
+    <div class="mc just-updated" id="mc-pb"><div class="mc-l">破净率 <span class="vbadge" data-meta="below_net_asset"></span></div><div class="mc-v c-muted" id="m-pb">--</div><div class="mc-s" id="m-pb-s">阈值10%</div><div style="position:relative;height:40px;margin-top:6px"><canvas id="c-pb"></canvas></div><div class="mc-fn">口径：全部A股，按乐咕乐股统计口径（股价低于每股净资产的公司占比）。超过<strong style="color:var(--danger)">10–15%</strong>历史上为大熊市底部。</div></div>
   </div>
   <div class="row3 fi" style="animation-delay:.1s">
     <div class="card">
@@ -254,8 +260,9 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
   </div>
   <div class="row3b fi" style="animation-delay:.15s">
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div class="card-title" style="margin:0">信贷脉冲（社融存量同比一阶导）</div><span><span class="vbadge" data-meta="m2_monthly"></span><span class="src-freq">月度·约15日发布</span></span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div class="card-title" style="margin:0">信贷脉冲（社融存量同比一阶导）</div><span><span class="vbadge" data-meta="credit_yoy"></span><span class="src-freq">月度·约15日发布</span></span></div>
       <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.7">Δ(社融存量YoY) = 本月-上月 YoY 增速差。<strong style="color:var(--text)">连续2月Δ&gt;0=看多确认，领先A股约6-12个月</strong>（回测2016-至今 119 月，IC≈+0.27，命中率约60%）。</div>
+      <div id="sf-m2-warn" style="display:none;font-size:11px;font-weight:700;color:#991b1b;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;margin-bottom:8px">⚠ M2 兜底，信号无效（IC≈0）</div>
       <div id="sf-verify" style="font-size:10px;color:var(--muted);font-family:var(--mono);background:var(--bg3);border-radius:6px;padding:6px 10px;margin-bottom:8px;line-height:1.8">等待数据…</div>
       <div style="position:relative;height:130px"><canvas id="c-credit" style="box-sizing: border-box; display: block; height: 130px; width: 418px;" width="627" height="195"></canvas></div>
       <div style="margin-top:8px;display:flex;gap:16px;font-size:11px">
@@ -387,7 +394,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
         <div class="layer2-body">
           <div>
             <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">价量拥挤度散点图</div>
-            <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.7">X轴=ERP分位（越低=越贵）· Y轴=换手率分位（越高=越拥挤）<br><span style="color:#dc2626;font-weight:600">右上角红区=低ERP+高换手=极度拥挤，强烈减仓信号</span></div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.7">X轴=ERP位置（2%–7%区间，越低=越贵）· Y轴=换手率分位（越高=越拥挤）<br><span style="color:#dc2626;font-weight:600">右上角红区=低ERP+高换手=极度拥挤，强烈减仓信号</span></div>
             <div style="position:relative;height:220px"><canvas id="c-scatter" style="box-sizing: border-box; display: block; height: 0px; width: 0px;" width="0" height="0"></canvas></div>
           </div>
           <div>
@@ -397,7 +404,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14
               <div style="font-family: var(--mono); font-size: 32px; font-weight: 700; color: rgb(217, 119, 6);" id="pca-score-dm">61</div>
               <div style="font-size:10px;color:var(--muted);margin-top:2px">满分 100</div>
             </div>
-            <div class="pbar-row" id="dm2-erp-bar"><div class="pbar-row"><div class="pbar-label-row"><span class="pbar-label">ERP分位（权重55%）</span><span class="pbar-val" style="color:var(--text)">43%</span></div><div class="pbar-track" style="background:#b5d4f4"><div class="pbar-fill" style="background:#185fa5;width:43%"></div></div></div></div>
+            <div class="pbar-row" id="dm2-erp-bar"><div class="pbar-row"><div class="pbar-label-row"><span class="pbar-label">ERP位置（2%–7%区间，权重55%）</span><span class="pbar-val" style="color:var(--text)">43%</span></div><div class="pbar-track" style="background:#b5d4f4"><div class="pbar-fill" style="background:#185fa5;width:43%"></div></div></div></div>
             <div class="pbar-row" id="dm2-turn-bar"><div class="pbar-row"><div class="pbar-label-row"><span class="pbar-label">换手率分位（权重45%）</span><span class="pbar-val" style="color:#a32d2d">82%</span></div><div class="pbar-track" style="background:#f7c1c1"><div class="pbar-fill" style="background:#a32d2d;width:82%"></div></div></div></div>
             <div class="l1-result-box" id="l2-interp-box" style="margin-top: 8px; text-align: left; border-color: rgb(217, 119, 6); background: rgb(255, 251, 235);">
               <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px; color: rgb(217, 119, 6);" id="l2-interp-title">散点偏向危险区域</div>
@@ -492,10 +499,10 @@ let _prebuiltData=null;
 /* ═══ 数据元信息（source / date / is_estimate / stale）═══
    update_arisk_data.py 输出的每个字段统一为 {value,source,date,is_estimate,stale[,note]}。
    卡片上的来源徽标、「估算」标记、日期、stale 提示一律从这里读取，不在 HTML 里写死。 */
-const META_KEYS=['pe_300','bond10y','pb_ratio','vol_7d','turnover','hv30','m2_monthly','margin','sector_live','etf_categories'];
+const META_KEYS=['pe_300','bond10y','erp_history','below_net_asset','vol_7d','turnover','hv30','credit_yoy','margin','sector_live','etf_categories'];
 const META_STATIC={source:'静态占位',date:null,is_estimate:true,stale:true};
-const META_LABEL={pe_300:'PE',bond10y:'10Y国债',pb_ratio:'破净率',vol_7d:'成交额',turnover:'换手率',hv30:'HV30',
-  m2_monthly:'社融',margin:'两融',sector_live:'行业',etf_categories:'ETF'};
+const META_LABEL={pe_300:'PE',bond10y:'10Y国债',erp_history:'ERP历史',below_net_asset:'破净率',vol_7d:'成交额',turnover:'换手率',hv30:'HV30',
+  credit_yoy:'社融',margin:'两融',sector_live:'行业',etf_categories:'ETF'};
 const isWrapped=w=>!!(w&&typeof w==='object'&&'value' in w&&'stale' in w);
 const valOf=w=>isWrapped(w)?w.value:null;
 const metaOf=w=>isWrapped(w)&&w.value!=null
@@ -638,31 +645,8 @@ function flashMC(id){const e=$(id);if(!e)return;e.classList.remove('just-updated
 function dmBadge(label,scheme){const c={ok:'dmb-ok',warn:'dmb-warn',danger:'dmb-danger',neutral:'dmb-neutral'}[scheme]||'dmb-neutral';return '<span class="dm-badge '+c+'">'+label+'</span>';}
 
 /* ═══ FETCH ═══ */
-async function fetchVolFromSina(){
-  try{
-    const proxyBase='http://localhost:8899/?url=';
-    const target=encodeURIComponent('https://hq.sinajs.cn/list=sh000001,sz399001');
-    const r=await fetch(proxyBase+target,{cache:'no-cache'});
-    const t=await r.text();let tot=0;
-    for(const line of t.split('\n').filter(l=>l.includes('var hq_str'))){
-      const m=line.match(/"(.+)"/);if(!m)continue;
-      const v=parseFloat(m[1].split(',')[9]);if(v>0)tot+=v;
-    }
-    return tot>1e12?tot:null;
-  }catch(e){return null;}
-}
-
-/* 全市场平均换手率 — push2 clist 已被 EM 风控
-   改用 volYuan / 流通市值 估算（A 股流通市值 ~90 万亿元，2026 基线）
-   传入 volYuan 由调用方提供（已在 [1/6] 拉到） */
-function estimateTurn(volYuan){
-  if(!volYuan||volYuan<1e11)return null;
-  const FLOAT_MV=9e13;  // A 股流通市值 ~90 万亿元
-  return +(volYuan/FLOAT_MV*100).toFixed(2);
-}
 async function fetchTurnFromClist(){
   // push2 clist 风控时此函数不再尝试网络，直接返回 null
-  // 实际换手率由 compute() 用 estimateTurn(volYuan) 算
   return{avgTurn:null};
 }
 
@@ -716,9 +700,7 @@ async function fetchSectorKline20(bkCode){ return []; }
 
 /* ═══ REALTIME FETCH FUNCTIONS ═══ */
 
-/* 万得全A (000985.CSI) PE/PB — 东财指数详情接口
-   f9=动态市盈率TTM  f23=市净率PB */
-/* PE/PB → /pe (leguLegu 总股本加权 TTM，最保守) */
+/* 沪深300 PE(TTM) → /pe（乐咕乐股 滚动市盈率，与 update_arisk_data.fetch_pe_300 同源） */
 async function fetchIndexValuation(){
   try{
     const r=await fetch('http://localhost:8899/pe',{cache:'no-cache'});
@@ -835,15 +817,6 @@ async function fetchETFCategories(){
   return null;
 }
 
-/* PB破净率 — 用万得全A PB值近似估算
-   PB<1的比率：历史上 PB全A < 1.4 时破净率约超过10% */
-function estimatePbRatio(pbFullA){
-  if(!pbFullA||pbFullA<=0)return null;
-  // 线性近似：PB=1.0→破净率≈18%, PB=1.5→8%, PB=2.0→4%
-  const ratio=Math.max(0,Math.min(30,+(24-10*pbFullA).toFixed(1)));
-  return ratio;
-}
-
 /* 社融存量同比增速 — 东财宏观数据中心
    返回按月排序的数组 [{m:'YY-MM', g:number}, ...]，最近12条 */
 async function fetchSFData(){
@@ -944,7 +917,7 @@ function getStatic(){
   const recentTurn=Array(7).fill(1.2); // A股典型换手率基线；运行时会被实时/缓存值覆盖
   // marginSlopeZ 由 renderMarginChart() 从斜率序列动态计算后写入 window._D
   return{
-    peFullA:16.87,bond10y:1.78,pbRatio:9.1,iv300:21.2,ivPct:65,
+    pe300:12.6,bond10y:1.78,pbRatio:null,pbSeries:[],erpHist:null,iv300:21.2,ivPct:65,
     marginBal:15820,marginChg:0,marginSlopeZ:null,turnoverPct:50,
     limitUp:0,limitDown:0,hs300:3800,
     sfData:[],impulse:[],impLabels:[],
@@ -965,12 +938,9 @@ async function fetchAll(force){
   const P=k=>valOf(prebuilt?.[k]),PM=k=>metaOf(prebuilt?.[k]);
   const meta=staticMeta();
   const useMeta=(k,m)=>{if(m)meta[k]=m;};
-  let volYuan=null,avgTurn=null,shKlines=[],sectorLive=[],volSource='加载中';
+  let avgTurn=null,shKlines=[],sectorLive=[],volSource='加载中';
 
-  setL('获取今日成交额...','[1/6]');
-  try{const v=await Promise.race([fetchVolFromSina(),new Promise((_,rej)=>setTimeout(rej,4000))]);if(v&&v>5e12){volYuan=v;volSource='新浪实时';}}catch(e){}
-
-  setL('获取估值/国债/沪深300/ETF/社融...','[2/6]');
+  setL('获取估值/国债/沪深300/ETF/社融...','[1/5]');
   const _bondKlineP=Promise.race([fetchBondKline(30),new Promise((_,rej)=>setTimeout(rej,10000))]).catch(()=>[]);
 
   // 用 Promise.allSettled，单个失败不影响其他
@@ -993,7 +963,7 @@ async function fetchAll(force){
     ?Promise.race([fetchMarginData(),new Promise((_,rej)=>setTimeout(rej,25000))]).catch(()=>({bal:null,klines:[]}))
     :Promise.resolve({bal:null,klines:[]});
 
-  setL('获取行业/HV30...','[3/6]');
+  setL('获取行业/HV30...','[2/5]');
   let turnResult={avgTurn:null},ivResult=null,ivKlines=[],hs300Prices=null,sectorW=null;
   const _settled3=await Promise.allSettled([
     fetchTurnFromClist(),     // 当前已废弃 push2 调用，立即返回 null
@@ -1005,12 +975,12 @@ async function fetchAll(force){
   const _w=i=>_settled3[i].status==='fulfilled'?_settled3[i].value:null;
   turnResult=_w(0)||{avgTurn:null};
   sectorW=_w(1);sectorLive=valOf(sectorW)||[];ivResult=_w(2);ivKlines=_w(3)||[];hs300Prices=_w(4);
-  // 换手率优先级：预构建 JSON (真实值，沪+深 stock_sse_deal_daily) > 实时接口 > estimateTurn 兜底
+  // 换手率：预构建 JSON（沪深交易所真实值）> 实时接口
   const prebuiltTurn=P('turnover')?.avg_pct;
-  avgTurn=prebuiltTurn||turnResult.avgTurn||estimateTurn(volYuan);
+  avgTurn=prebuiltTurn||turnResult.avgTurn;
 
   // ── MX API 二次补充（sfData / fundIssuance 主接口为空时） ──────────
-  if((!sfDataLive||sfDataLive.length<4)&&!P('m2_monthly')){
+  if((!sfDataLive||sfDataLive.length<4)&&!P('credit_yoy')){
     try{
       const mxSF=await Promise.race([fetchMX('社融存量同比增速最近12个月'),new Promise((_,rej)=>setTimeout(rej,8000))]);
       if(mxSF){const parsed=parseMXMonthly(mxSF);if(parsed&&parsed.length>=4){
@@ -1019,7 +989,7 @@ async function fetchAll(force){
       }}
     }catch(e){}
   }
-  setL('拉取历史K线（上证）...','[4/6]');
+  setL('拉取历史K线（上证）...','[3/5]');
   try{shKlines=await Promise.race([fetchKline('1.000001',260),new Promise((_,rej)=>setTimeout(rej,5000))]);}catch(e){shKlines=[];}
 
   // 收集两融结果（[3/6]+[4/6] 已耗约 5-17s，margin 大概率已就绪）
@@ -1027,8 +997,7 @@ async function fetchAll(force){
     try{const md=await _marginP;if(md?.klines?.length>=3){marginBal=md.bal;marginKlines=md.klines;marginMeta=md.meta||null;useMeta('margin',marginMeta);}}catch(e){}
   }
 
-  setL('拉取行业20日K线（并发）...','[5/6]');
-  setL('整理数据...','[6/6]');
+  setL('整理数据...','[5/5]');
 
   // ETF 资金分类流向的拉取+渲染已统一移到 apply()，覆盖缓存/实时两条路径（见 apply）
 
@@ -1050,10 +1019,15 @@ async function fetchAll(force){
   // ── 2. PE/PB ──────────────────────────────────────────────
   // 降级链：live /pe → prebuilt pe_300（fetch_pe_300 每日抓，与 /pe 同口径）→ 静态兜底
   const peSrcW = valOf(peW)>0 ? peW : (P('pe_300')>0 ? prebuilt.pe_300 : null);
-  const peNow  = valOf(peSrcW) || st.peFullA;
+  const peNow  = valOf(peSrcW) || st.pe300;
   useMeta('pe_300',metaOf(peSrcW));
-  const pbNow  = null;   // /pe 不提供 PB
-  const pbRatioNow = pbNow ? estimatePbRatio(pbNow) : st.pbRatio;
+  // 破净率：乐咕乐股全部A股破净统计（真实值，不再由 PB 估算）
+  const belowNet=P('below_net_asset');
+  const pbRatioNow=belowNet&&belowNet.ratio!=null?belowNet.ratio:null;
+  if(pbRatioNow!=null)useMeta('below_net_asset',PM('below_net_asset'));
+  // ERP 近 5 年真实分位（仅展示，不参与打分）
+  const erpHist=P('erp_history')||null;
+  if(erpHist)useMeta('erp_history',PM('erp_history'));
 
   // ── 3. 两融余额 & 斜率序列 ────────────────────────────────
   let marginBalNow = marginBal || st.marginBal;
@@ -1143,12 +1117,8 @@ async function fetchAll(force){
       volSource=(volSource==='静态'?'K线':'('+volSource+')+K线');
     }
   }
+  // 成交额序列的日期标签一律来自数据本身（不再用"今天"改写最后一格的标签）
   const now2=new Date(),todayLabel=(now2.getMonth()+1)+'/'+(now2.getDate());
-  const lastLabel=recentVol[recentVol.length-1].d;
-  const needsLabelUpdate=(lastLabel!==todayLabel);
-  if(volYuan){recentVol[recentVol.length-1]={d:needsLabelUpdate?todayLabel:lastLabel,v:Math.round(volYuan/1e8)};
-    meta.vol_7d={source:'新浪实时',date:new Date().toISOString().slice(0,10),is_estimate:true,stale:false,note:'最后一格为新浪盘中成交额'};}
-  else if(needsLabelUpdate){recentVol[recentVol.length-1]={...recentVol[recentVol.length-1],d:todayLabel};}
   // 换手率：有效时写入最后一格并缓存到localStorage；非交易时段从缓存恢复
   // 来自预构建序列时最后一格已是交易所真实值，不再用 avgTurn 覆盖（避免 3.045→3.0 精度损失）
   if(turnFromPrebuilt){
@@ -1188,11 +1158,11 @@ async function fetchAll(force){
   // 数据优先级：预构建 JSON（社融存量同比，IC=0.27）> live /sf（M2 同比，IC≈0）
   //           即使 sfDataLive 拿到了 M2，也要让预构建的社融数据覆盖
   let sfDataFinal=st.sfData,impulseFinal=st.impulse,impLabelsFinal=st.impLabels;
-  const sfUseW=P('m2_monthly')&&P('m2_monthly').length>=3?prebuilt.m2_monthly
+  const sfUseW=P('credit_yoy')&&P('credit_yoy').length>=3?prebuilt.credit_yoy
     :(sfDataLive&&sfDataLive.length>=3?sfW:null);
   const sfSrc=valOf(sfUseW);
   if(sfSrc){
-    useMeta('m2_monthly',metaOf(sfUseW));
+    useMeta('credit_yoy',metaOf(sfUseW));
     sfDataFinal=sfSrc;
     impulseFinal=[];impLabelsFinal=[];
     for(let i=1;i<sfDataFinal.length;i++){
@@ -1207,7 +1177,7 @@ async function fetchAll(force){
   const pe=peNow,bd=bondNow;
   const erp=+((1/pe-bd/100)*100).toFixed(2);
   const erpPct=Math.round(Math.min(100,Math.max(0,(erp-2.0)/(7.0-2.0)*100)));
-  const totalVolYi=volYuan?volYuan/1e8:recentVol[recentVol.length-1].v;
+  const totalVolYi=recentVol[recentVol.length-1].v;
   const totalVolWanYi=+(totalVolYi/10000).toFixed(2);
   const volRatio=ma250yi?+(totalVolYi/ma250yi).toFixed(2):null;
 
@@ -1261,10 +1231,10 @@ async function fetchAll(force){
     }
     // 社融存量同比 → 一阶导信号（M2 数据作为口径近似回退，AKShare 与央行口径偏差约1pp，
     // 但一阶导是相对量，方向不受影响）
-    if(P('m2_monthly')&&P('m2_monthly').length>=3
+    if(P('credit_yoy')&&P('credit_yoy').length>=3
        &&(!sfDataLive||sfDataLive.length<3)){
-      sfDataFinal=P('m2_monthly');
-      useMeta('m2_monthly',PM('m2_monthly'));
+      sfDataFinal=P('credit_yoy');
+      useMeta('credit_yoy',PM('credit_yoy'));
       impulseFinal=[];impLabelsFinal=[];
       for(let i=1;i<sfDataFinal.length;i++){
         impulseFinal.push(+(sfDataFinal[i].g-sfDataFinal[i-1].g).toFixed(2));
@@ -1285,8 +1255,10 @@ async function fetchAll(force){
   return{
     ...st,
     // 覆盖所有可实时化的字段
-    peFullA:peNow, bond10y:bondNow,
-    pbRatio:pbRatioNow,
+    pe300:peNow, bond10y:bondNow,
+    pbRatio:pbRatioNow, pbSeries:belowNet?.series||[], pbPct5y:belowNet?.pct5y??null,
+    pbCount:belowNet?.count??null, pbTotal:belowNet?.total??null,
+    erpHist,
     hs300:hs300Now,
     marginBal:marginBalNow, marginChg:marginChgNow,
     marginSlopeSeries, marginSliceLabels,
@@ -1334,12 +1306,12 @@ function renderVolChart(d){
   // vol-verify 说明行：动态显示最新几日数值
   const vv=$('vol-verify');
   if(vv){
+    const vm=(d.meta&&d.meta.vol_7d)||META_STATIC;
     const recent=d.recentVol.slice(-4).reverse();
-    const parts=recent.map(x=>`${x.d}≈${(x.v/10000).toFixed(2)}万亿`);
-    const lastV=vols[vols.length-1];
-    const streak=vols.filter(v=>v>=2).length;
-    vv.textContent=parts.join(' | ')+(streak>=3?` | 连续${streak}日>2万亿 ⚠逃顶信号区`:'');
-    vv.title='数据来源：'+d.volSource; if(d.volSource&&d.volSource.includes('60日'))vv.textContent+=(' | 行业偏离度=60日基准');
+    const parts=recent.map(x=>`${x.d} ${vm.is_estimate?'≈':''}${(x.v/10000).toFixed(2)}万亿`);
+    let streak=0;for(let i=vols.length-1;i>=0&&vols[i]>=2;i--)streak++;
+    vv.textContent=parts.join(' | ')+(streak>=3?` | 连续${streak}日>2万亿${streak>=7?' ⚠逃顶信号区':''}`:'');
+    vv.title=(vm.source||'无数据')+(vm.note?'：'+vm.note:'');
   }
 }
 
@@ -1614,7 +1586,7 @@ function renderScatter(erpPct,turnoverPct){
   plugins:[{id:'q',beforeDraw(chart){
     const{ctx:c,chartArea:{left,right,top,bottom,width,height}}=chart;
     const mx=left+width/2,my=top+height/2;c.save();
-    // X 轴 = ERP分位（左=低=贵，右=高=便宜）。危险=贵+高换手=左上；安全=便宜+低换手=右下。
+    // X 轴 = ERP位置（左=低=贵，右=高=便宜）。危险=贵+高换手=左上；安全=便宜+低换手=右下。
     c.fillStyle='rgba(220,38,38,.07)';c.fillRect(left,top,mx-left,my-top);   // 左上：贵+高换手=危险
     c.fillStyle='rgba(234,179,8,.05)';c.fillRect(mx,top,right-mx,my-top);    // 右上：便宜+高换手=偏热
     c.fillStyle='rgba(22,163,74,.05)';c.fillRect(mx,my,right-mx,bottom-my);  // 右下：便宜+低换手=安全
@@ -1624,9 +1596,9 @@ function renderScatter(erpPct,turnoverPct){
     c.fillStyle='rgba(22,163,74,.5)';c.fillText('✓ 安全区',mx+(right-mx)/2,bottom-8);
     c.restore();
   }}],
-  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===1?'当前: ERP分位='+Math.round(ctx.parsed.x)+'%, 换手='+Math.round(ctx.parsed.y)+'%':'ERP='+Math.round(ctx.parsed.x)+'%, 换手='+Math.round(ctx.parsed.y)+'%'}}},
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===1?'当前: ERP位置='+Math.round(ctx.parsed.x)+'%, 换手='+Math.round(ctx.parsed.y)+'%':'ERP='+Math.round(ctx.parsed.x)+'%, 换手='+Math.round(ctx.parsed.y)+'%'}}},
     scales:{
-      x:{title:{display:true,text:'ERP分位（←低=贵=危险  高=便宜=安全→）',font:{size:10},color:'#718096'},min:0,max:100,ticks:{font:{size:9},color:'#94a3b8',callback:v=>v+'%'},grid:{color:'rgba(0,0,0,.04)'}},
+      x:{title:{display:true,text:'ERP位置（←低=贵=危险  高=便宜=安全→）',font:{size:10},color:'#718096'},min:0,max:100,ticks:{font:{size:9},color:'#94a3b8',callback:v=>v+'%'},grid:{color:'rgba(0,0,0,.04)'}},
       y:{title:{display:true,text:'换手率分位（越高=越拥挤→）',font:{size:10},color:'#718096'},min:0,max:100,ticks:{font:{size:9},color:'#94a3b8',callback:v=>v+'%'},grid:{color:'rgba(0,0,0,.04)'}},
     }}});
 }
@@ -1638,7 +1610,7 @@ function mkPb(scheme,pct,label,val){
 }
 function renderDecisionModel(d){
   if(!d)return;
-  const pe=d.peFullA,bd=d.bond10y;
+  const pe=d.pe300,bd=d.bond10y;
   const erpPct=Math.round(Math.min(100,Math.max(0,((1/pe-bd/100)*100-2.0)/(7.0-2.0)*100)));
   const latestTurn=Array.isArray(d.recentTurn)&&d.recentTurn.length?d.recentTurn[d.recentTurn.length-1]:0;
   // 换手率 fallback：数据缺失时取 1.5（映射到分位 ≈ 43，中性），避免误触发"极度拥挤"信号
@@ -1659,7 +1631,7 @@ function renderDecisionModel(d){
   const creditNeg=contractionConfirmed;     // 仅"连续2月Δ<0"才算确认收缩
   const creditPos=expansionConfirmed;        // 新增：扩张确认
   const creditState=expansionConfirmed?'expansion':contractionConfirmed?'contraction':'neutral';
-  // 拥挤/危险分：贵(=100-ERP分位) + 高换手。ERP分位越高=越便宜=越安全，故取其补数。
+  // 拥挤/危险分：贵(=100-ERP位置) + 高换手。ERP位置越高=越便宜=越安全，故取其补数。
   // 回测：ERP 绝对阈值口径 6月 IC +0.315 / 12月 +0.454，是全模型最强单因子；
   //       换手率单独 IC 仅 -0.071，但按 45% 权重混入后组合表现最优，故维持现配方。
   const pcaCrowding=Math.round((100-erpPct)*0.55+turnoverPct*0.45);
@@ -1714,7 +1686,10 @@ function renderDecisionModel(d){
     const scheme=dataAgeMin==null?'muted':dataAgeMin>360?'danger':dataAgeMin>120?'warn':'ok';
     const clr={ok:'#0a7c52',warn:'#d97706',danger:'#dc2626',muted:'var(--muted)'}[scheme];
     const staleTag=scheme==='danger'?' ⚠ 数据陈旧，结论可能失效':scheme==='warn'?' · 建议手动 ↻ 刷新':'';
-    freshEl.innerHTML='决策模型于 <strong>'+nowStr+'</strong> 重算，基于 <strong style="color:'+clr+'">'+dataMsg+'</strong> 的数据'+staleTag;
+    // 决策输入中本次抓取失败、复用旧值的字段
+    const staleIn=['credit_yoy','pe_300','bond10y','turnover'].map(k=>{const m=d.meta&&d.meta[k];return m&&m.stale?META_LABEL[k]+'('+(m.date||'无数据')+')':null;}).filter(Boolean);
+    freshEl.innerHTML='决策模型于 <strong>'+nowStr+'</strong> 重算，基于 <strong style="color:'+clr+'">'+dataMsg+'</strong> 生成的数据'+staleTag
+      +(staleIn.length?' · <strong style="color:#991b1b">⚠ 以下输入数据停留在旧日期：'+esc(staleIn.join('、'))+'</strong>':'');
     freshEl.style.color=clr;
   }
 
@@ -1747,7 +1722,8 @@ function renderDecisionModel(d){
     contraction:'连续2月Δ<0 — 信用收缩已确认，6-12 月后压制A股',
     neutral:'未触发 — 一阶导未连续2月同号，方向尚未确认'
   }[creditState];
-  set('l1-status-text',statusText,stTextDark);
+  const creditM2=((d.meta&&d.meta.credit_yoy)||{}).source==='M2兜底';
+  set('l1-status-text',statusText+(creditM2?'　⚠ 当前为 M2 兜底数据，信号无效（IC≈0）':''),creditM2?'#991b1b':stTextDark);
   set('l1-big-val',(impN>=0?'+':'')+impN.toFixed(2),stColor);
   const subText={
     expansion:'<strong style="color:#0a7c52">结论：扩张确认期。</strong>6-12 月内 A 股大概率向上，第三层信号仅作短线择时。',
@@ -1779,7 +1755,7 @@ function renderDecisionModel(d){
   renderScatter(erpPct,turnoverPct);
   const ps=$('pca-score-dm');if(ps){ps.textContent=pcaCrowding;ps.style.color=crowdingScheme==='danger'?'#dc2626':crowdingScheme==='warn'?'#d97706':'#16a34a';}
   const eb=$('dm2-erp-bar'),tb2=$('dm2-turn-bar');
-  if(eb)eb.innerHTML=mkPb(erpPct>=70?'ok':erpPct>=40?'neutral':'danger',erpPct,'ERP分位（权重55%）',erpPct+'%');
+  if(eb)eb.innerHTML=mkPb(erpPct>=70?'ok':erpPct>=40?'neutral':'danger',erpPct,'ERP位置（2%–7%区间，权重55%）',erpPct+'%');
   if(tb2)tb2.innerHTML=mkPb(turnoverPct>=80?'danger':turnoverPct>=60?'warn':'ok',turnoverPct,'换手率分位（权重45%）',turnoverPct+'%');
   const l2ib=$('l2-interp-box'),l2it=$('l2-interp-title'),l2id=$('l2-interp-body');
   const l2clr=crowdingScheme==='danger'?'#dc2626':crowdingScheme==='warn'?'#d97706':'#0a7c52';
@@ -1840,26 +1816,68 @@ function renderDecisionModel(d){
   $('dmpg').style.opacity='1';
 }
 
+/* ERP 位置 → 颜色：低（贵）红/橙，高（便宜）绿。阈值与 pcaCrowding / L2 进度条一致：
+   <20 极贵（逃顶线）、<40 偏贵、<70 中性、≥70 安全 */
+function erpClass(p){return p<20?'c-danger':p<40?'c-warn':p<70?'c-accent':'c-ok';}
+
+/* ERP 近5年月度序列（仅展示） */
+function renderErpHistChart(eh,erpNow){
+  if(!eh||!Array.isArray(eh.series)||eh.series.length<3){if(CH['c-erp-hist']){CH['c-erp-hist'].destroy();CH['c-erp-hist']=null;}return;}
+  const labels=eh.series.map(x=>x.d.slice(0,7));
+  const vals=eh.series.map(x=>x.v);
+  mkChart('c-erp-hist',{type:'line',data:{labels,datasets:[
+    {label:'ERP(月末)',data:vals,borderColor:'#1d5fd4',borderWidth:1.5,pointRadius:vals.map((_,i)=>i===vals.length-1?3:0),fill:false,tension:.25},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+    tooltip:{callbacks:{label:c=>'ERP '+c.parsed.y.toFixed(2)+'%'}}},
+    scales:{x:{ticks:{font:{size:8},color:T,maxTicksLimit:6},grid:{display:false}},
+            y:{ticks:{font:{size:8},color:T,callback:v=>v+'%'},grid:{color:G}}}}});
+}
+
+/* 破净率近5年序列（约每周一点） */
+function renderPbChart(series){
+  if(!Array.isArray(series)||series.length<3)return;
+  mkChart('c-pb',{type:'line',data:{labels:series.map(x=>x.d),datasets:[
+    {data:series.map(x=>x.v),borderColor:'#9a5e00',borderWidth:1.2,pointRadius:0,fill:false,tension:.2},
+    {data:series.map(()=>10),borderColor:'rgba(185,28,28,.5)',borderWidth:1,borderDash:[3,3],pointRadius:0,fill:false},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+    tooltip:{callbacks:{label:c=>c.datasetIndex===0?c.label+' '+c.parsed.y.toFixed(2)+'%':'阈值 10%'}}},
+    scales:{x:{display:false},y:{display:false}}}});
+}
+
 /* ═══ MAIN RENDER ═══ */
 function render(d){
   window._D=d;
   window._META={...(d.meta||staticMeta()),...(window._ETF_META?{etf_categories:window._ETF_META}:{})};
   renderMeta(window._META);
-  const pe=d.peFullA,bd=d.bond10y;
+  const pe=d.pe300,bd=d.bond10y;
   const erp=+((1/pe-bd/100)*100).toFixed(2),erpPct=Math.round(Math.min(100,Math.max(0,(erp-2.0)/(7.0-2.0)*100)));
   const set=(id,txt,color)=>{const e=$(id);if(e){e.textContent=txt;if(color)e.style.color=color;}};
   set('erp-detail','1/'+pe.toFixed(2)+' − '+bd.toFixed(2)+'%');
-  const ev=$('erp-val');if(ev){ev.textContent=erp.toFixed(2)+'%';ev.className='erp-val '+(erpPct>=90?'c-danger':erpPct>=70?'c-warn':'c-ok');}
-  const ep=$('erp-pct');if(ep){ep.textContent=erpPct+'%';ep.className='erp-pct-big '+(erpPct>=90?'c-danger':erpPct>=70?'c-warn':'c-ok');}
-  const pg=$('pct-grad');if(pg)pg.style.width=erpPct+'%';
+  const ec=erpClass(erpPct);
+  const ev=$('erp-val');if(ev){ev.textContent=erp.toFixed(2)+'%';ev.className='erp-val '+ec;}
+  const ep=$('erp-pct');if(ep){ep.textContent=erpPct+'%';ep.className='erp-pct-big '+ec;}
   const pn=$('pct-needle');if(pn)pn.style.left=erpPct+'%';
-  mc('m-pe',pe.toFixed(2)+'x','万得全A','c-accent');
+  // 5年真实分位：仅展示，不参与打分
+  const eh=d.erpHist;
+  const er=$('erp-real-pct');
+  if(er){er.textContent=eh&&eh.pct!=null?eh.pct+'%':'--';er.className='erp-real '+(eh&&eh.pct!=null?erpClass(eh.pct):'c-muted');
+    er.title=eh?'近5年 '+eh.n+' 个'+(eh.freq||'')+'度样本，当前样本 ERP='+eh.current+'%':'';}
+  renderErpHistChart(eh,erp);
+  mc('m-pe',pe.toFixed(2)+'x','沪深300 滚动市盈率','c-accent');
   mc('m-bond',bd.toFixed(2)+'%','中国10年期国债','c-muted');
-  mc('m-pb',d.pbRatio.toFixed(1)+'%','阈值10%'+(d.pbRatio>=10?' ⚡':''),d.pbRatio>=10?'c-danger':d.pbRatio>=8?'c-warn':'c-ok');
+  if(d.pbRatio!=null){
+    mc('m-pb',d.pbRatio.toFixed(2)+'%',
+      '阈值10%'+(d.pbRatio>=10?' ⚡':'')+(d.pbCount!=null?' · '+d.pbCount+'/'+d.pbTotal+' 家':'')+(d.pbPct5y!=null?' · 5年分位 '+d.pbPct5y+'%':''),
+      d.pbRatio>=10?'c-danger':d.pbRatio>=8?'c-warn':'c-ok');
+  }else mc('m-pb','--','阈值10% · 暂无数据','c-muted');
+  renderPbChart(d.pbSeries);
+  // 社融：M2 兜底时信号无效，醒目提示
+  const cm=(d.meta&&d.meta.credit_yoy)||META_STATIC;
+  const m2w=$('sf-m2-warn');if(m2w)m2w.style.display=cm.source==='M2兜底'?'':'none';
   ['mc-pe','mc-bond','mc-pb'].forEach(flashMC);
   renderIV(d.iv300,d.ivPct,d.ivSrc);
   const sfv=$('sf-verify');if(sfv&&d.sfData&&d.sfData.length){const sfLast=d.sfData[d.sfData.length-1];
-    const sm=(d.meta&&d.meta.m2_monthly)||META_STATIC;
+    const sm=(d.meta&&d.meta.credit_yoy)||META_STATIC;
     sfv.innerHTML='<strong>社融存量同比（'+esc(sm.source||'无数据')+'）：</strong>'
       +d.sfData.slice(-5).map(x=>x.m+':'+x.g+'%').join(' | ')
       +'<br>最新：'+sfLast.m+' = <strong>'+sfLast.g+'%</strong>'
@@ -1982,8 +2000,8 @@ window.addEventListener('load',async ()=>{
     // 实时环境：清除可能存在的静态缓存，强制重新拉取
     try{
       const cached=JSON.parse(localStorage.getItem(CKEY)||'null');
-      // 若缓存的 peFullA 仍是静态初始值，说明从未成功拉过实时数据，清除
-      if(cached&&cached.d?.peFullA===16.87&&cached.d?.bond10y===1.78){
+      // 若缓存的 pe300 仍是静态初始值，说明从未成功拉过实时数据，清除
+      if(cached&&cached.d?.pe300===12.6&&cached.d?.bond10y===1.78){
         localStorage.removeItem(CKEY);
         console.log('[arisk] 检测到静态缓存，已清除，将重新拉取实时数据');
       }

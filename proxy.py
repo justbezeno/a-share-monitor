@@ -228,7 +228,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         "/bond": "bond10y",
         "/sectors": "sector_live",
         "/margin": "margin",
-        "/sf": "m2_monthly",
+        "/sf": "credit_yoy",
         "/fund": "fund_issuance",
     }
 
