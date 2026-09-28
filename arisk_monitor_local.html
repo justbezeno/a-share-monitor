@@ -1153,13 +1153,15 @@ async function fetchAll(force){
   const ma250yi=amts.length?amts.reduce((a,b)=>a+b,0)/amts.length/1e8:9800;
 
   // ── 9. 行业（27 申万一级 + 60日累计涨跌，基于收盘价）──────────────
-  // sectorLive 来自 /sectors 端点：[{code,name,today,ret60,date}, ...] 已按 ret60 降序
+  // sectorLive 来自 /sectors 端点：[{n,code,excess,ret60,date}, ...] 已按 ret60 降序
+  // 注：升级后的代理返回 n/excess（与 prebuilt.sector_live 同 schema）；旧版为 name/today。
+  //     此处对两种字段名都兼容，否则新代理下名称会渲染成 undefined、今日涨跌恒为 0。
   if((sectorLive||[]).length>=8){
     st.sectors=sectorLive.map(s=>({
-      n:s.name,
+      n:s.n??s.name,
       bkCode:s.code,
-      excess:Number(s.today)||0,    // 今日涨跌（最新收盘日）
-      ret60:Number(s.ret60)||0,     // 60日累计涨跌
+      excess:Number(s.excess??s.today)||0,   // 今日涨跌（最新收盘日）
+      ret60:Number(s.ret60)||0,              // 60日累计涨跌
       date:s.date,
     }));
   }
