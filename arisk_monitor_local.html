@@ -231,11 +231,13 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <div>全历史均值 <span id="mg-meanall" style="font-family:var(--mono)">--</span></div>
       </div>
     </div>
+    <div id="mg-trend-note" style="font-size:11.5px;color:var(--muted);margin:2px 0 5px;line-height:1.7">加载中…</div>
     <div style="position:relative;height:175px"><canvas id="c-mktcap"></canvas></div>
     <div class="fnote" style="margin-top:10px">
       <strong>口径说明</strong>
-      <div class="fn-item"><b>分子</b>＝沪深两市月末<b>市价总值</b>（月度，亿元；中经网转发国家统计局口径）。<b>不含北交所</b>，也不含港股与境外上市中概股 —— 所以比"全部中国公司"的口径偏低，数值与不同口径的公开报道不可直接对比。</div>
-      <div class="fn-item"><b>分母</b>＝中国 GDP <b>滚动四季（TTM）</b>。统计局按「累计值」发布（"第1-2季度"＝上半年累计），这里先还原成单季、再滚动 4 个季度求和，才与月度频率可比；且只用<b>该月月底前已发布</b>的季度（发布日近似 Q1→4/17、Q2→7/15、Q3→10/18、Q4→次年1/17），避免前视偏差 —— 因此曲线在 4/7/10/次年1 月会出现台阶，是发布节奏所致，不是数据错误。</div>
+      <div class="fn-item"><b>走势图</b>＝近 <b>约 30 天（22 个交易日）</b>的日线。分子用<b>沪深交易所日频「市价总值」</b>（沪＝主板A+主板B+科创板，深＝主板A+主板B+创业板A），已与下面月度口径的分子<b>逐位核对一致</b>（2026-07-31、08-31 两个月末完全相同，可无缝拼接）—— 所以图上 8 月末那个点与上方「当前」是同一个数。</div>
+      <div class="fn-item"><b>分子</b>＝沪深两市<b>市价总值</b>（<b>不含北交所</b>，也不含港股与境外上市中概股）。注意上方「当前 / 分位 / 均值」是<b>月末月度样本</b>（分子为中经网转发的国家统计局月末口径，次月中旬才发布），所以月度值会滞后于图上日线；两者口径相同、只是时点不同。</div>
+      <div class="fn-item"><b>分母</b>＝中国 GDP <b>滚动四季（TTM）</b>。统计局按「累计值」发布（"第1-2季度"＝上半年累计），这里先还原成单季、再滚动 4 个季度求和，才与月度频率可比；且只用<b>该时点之前已发布</b>的季度（发布日近似 Q1→4/17、Q2→7/15、Q3→10/18、Q4→次年1/17），避免前视偏差 —— 因此曲线在 4/7/10/次年1 月会出现台阶，是发布节奏所致，不是数据错误。</div>
       <div class="fn-item"><b>分位</b>为<b>真实历史分位</b>（当前值在样本中的百分位），不是区间线性映射。该比值越高＝股市相对实体经济越贵。</div>
     </div>
   </div>
@@ -291,7 +293,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
       <div style="font-size:11.5px;color:var(--muted)" id="etf-cat-dates">加载中...</div>
     </div>
     <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">
-      60日窗口 = 公募季报调仓周期。<strong>按净变化额排序</strong>，左上=流入最多，右下=流出最多。<br>数据源为上交所 ETF 份额（沪市），分类由基金简称关键词判定，「其他」占比已压至约 2%。<br>旧份额按当前价格计值，反映的是份额变化带来的资金进出，不含价格涨跌。
+      60日窗口 = 公募季报调仓周期。<strong>按净变化额排序</strong>，左上=流入最多，右下=流出最多。<br>配色按 A 股惯例：<b style="color:#dc2626">红＝净流入</b> / <b style="color:#16a34a">绿＝净流出</b>，深浅按净变化额强度。<br>数据源为上交所 ETF 份额（沪市），分类由基金简称关键词判定，「其他」占比已压至约 2%。<br>旧份额按当前价格计值，反映的是份额变化带来的资金进出，不含价格涨跌。
     </div>
     <div id="etf-cat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:6px;margin-bottom:10px">加载中...</div>
     <details style="font-size:12px;color:var(--muted);line-height:1.7;background:var(--bg3);border-radius:6px;padding:8px 12px">
@@ -560,7 +562,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 const $=id=>document.getElementById(id);
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';
-const CKEY='arisk_v20',CTTL=6*3600*1000,SCHEMA=20;
+const CKEY='arisk_v21',CTTL=6*3600*1000,SCHEMA=21;
 // 缓存带两个版本戳，任一不符即作废并强制重拉：
 //   gen    = 预构建 JSON 的 generated_at —— 后台数据一更新就失效，无需手动 localStorage.clear()
 //   schema = 前端「载荷结构」版本 —— 只有页面代码改动导致缓存对象**字段增减**时才失效
@@ -568,7 +570,7 @@ const CKEY='arisk_v20',CTTL=6*3600*1000,SCHEMA=20;
 //   d.marginDailySeries，而用户浏览器里的缓存还是新增字段之前的旧结构（gen 未变 →
 //   判定有效）→ 渲染时取不到该字段，主图被清空，看起来就是「两融每日趋势是空的」。
 //   **凡改动缓存对象的字段结构，必须把 SCHEMA 和 CKEY 一起 +1。**
-try{localStorage.removeItem('arisk_v19');}catch(e){}   // 清掉上一代结构缓存，别留在浏览器里当垃圾
+try{localStorage.removeItem('arisk_v19');localStorage.removeItem('arisk_v20');}catch(e){}   // 清掉旧几代结构缓存，别留在浏览器里当垃圾
 const saveC=(d,gen)=>{try{localStorage.setItem(CKEY,JSON.stringify({ts:Date.now(),gen:gen||null,schema:SCHEMA,d}));}catch(e){}};
 const loadC=(expectGen)=>{try{
   const r=JSON.parse(localStorage.getItem(CKEY)||'null');
@@ -1608,17 +1610,18 @@ function renderETFCategories(data){
   grid.innerHTML=sorted.map(c=>{
     const pct=c.change_pct, chg=c.change_yi||0;
     // 配色按净变化额相对强度（而非百分比）——避免小基数类别因高百分比抢眼
+    // 涨跌配色遵循 A 股惯例：红=流入(涨) / 绿=流出(跌)，与申万行业热力图、指数卡一致
     const inten=Math.abs(chg)/maxAbs;
     let bg,tc,tag;
     if(chg>0){
-      if(inten>=0.5){bg='#16a34a';tc='#fff';tag='⭐ 主力流入';}
-      else if(inten>=0.15){bg='#86efac';tc='#14532d';tag='流入';}
-      else if(inten>=0.03){bg='#dcfce7';tc='#166534';tag='小幅流入';}
+      if(inten>=0.5){bg='#dc2626';tc='#fff';tag='⭐ 主力流入';}
+      else if(inten>=0.15){bg='#fca5a5';tc='#7f1d1d';tag='流入';}
+      else if(inten>=0.03){bg='#fee2e2';tc='#991b1b';tag='小幅流入';}
       else{bg='#f3f4f6';tc='#6b7280';tag='基本持平';}
     }else{
-      if(inten>=0.5){bg='#dc2626';tc='#fff';tag='⚠ 主力流出';}
-      else if(inten>=0.15){bg='#fca5a5';tc='#7f1d1d';tag='流出';}
-      else if(inten>=0.03){bg='#fee2e2';tc='#991b1b';tag='小幅流出';}
+      if(inten>=0.5){bg='#16a34a';tc='#fff';tag='⚠ 主力流出';}
+      else if(inten>=0.15){bg='#86efac';tc='#14532d';tag='流出';}
+      else if(inten>=0.03){bg='#dcfce7';tc='#166534';tag='小幅流出';}
       else{bg='#f3f4f6';tc='#6b7280';tag='基本持平';}
     }
     const chgTxt=(chg>=0?'+':'')+(Math.abs(chg)>=1000?(chg/1000).toFixed(1)+'千亿':chg.toFixed(0)+'亿');
@@ -1965,22 +1968,51 @@ function renderMktcapGdp(v){
   drawMktcapChart(v);
 }
 function drawMktcapChart(v){
-  const ys=v.ratios||[];
+  const note=$('mg-trend-note');
+  const dlD=v.daily_dates||[],dlY=v.daily_ratios||[],dlC=v.daily_caps||[],dlG=v.daily_gdps||[];
+  let labels,ys,mean,refLabel,ttip;
+  if(dlY.length>=3){
+    // 主路径：近约 30 天（22 个交易日）日线。分子=沪深交易所日频市价总值，分母=当日已发布的 GDP-TTM
+    labels=dlD.map(d=>{const p=String(d).split('-');return parseInt(p[1],10)+'/'+parseInt(p[2],10);});
+    ys=dlY;
+    mean=ys.reduce((a,b)=>a+b,0)/ys.length;
+    refLabel='近30天均值';
+    const caps=dlC,gdps=dlG,dates=dlD;
+    ttip={callbacks:{label:c=>{
+      if(c.datasetIndex!==0)return refLabel+' '+Number(mean).toFixed(2)+'%';
+      const i=c.dataIndex,out=[dates[i]+'　市值/GDP '+Number(c.parsed.y).toFixed(2)+'%'];
+      if(caps[i]!=null)out.push('两市总市值 '+Number(caps[i]).toFixed(2)+' 万亿');
+      if(gdps[i]!=null)out.push('GDP(滚动四季) '+Number(gdps[i]).toFixed(2)+' 万亿');
+      return out;
+    }}};
+    if(note){
+      const last=ys[ys.length-1],chg=last-ys[0];
+      note.innerHTML='近 30 天日线（'+ys.length+' 个交易日，'+dates[0]+' → '+dates[dates.length-1]+'）'
+        +'　最新 <b style="color:var(--text);font-family:var(--mono)">'+last.toFixed(2)+'%</b>'
+        +'　区间变化 <b style="font-family:var(--mono);color:'+(chg>=0?'var(--danger)':'var(--ok)')+'">'
+        +(chg>=0?'+':'')+chg.toFixed(2)+'pp</b>';
+    }
+  }else{
+    // 兜底：日线缺失（本次 turnover 没抓到总市值，或缓存是旧结构）→ 退回月度趋势，卡片不留空白
+    ys=v.ratios||[];
+    if(ys.length<3)return;
+    labels=(v.months||[]).map(m=>{const p=String(m).split('-');return p[0].slice(2)+'/'+parseInt(p[1],10);});
+    mean=v.mean_10y;refLabel='近10年均值';
+    const caps=v.mktcaps||[],gdps=v.gdps||[];
+    ttip={callbacks:{label:c=>{
+      if(c.datasetIndex!==0)return refLabel+' '+(mean==null?'--':Number(mean).toFixed(2)+'%');
+      const i=c.dataIndex,out=['市值/GDP '+Number(c.parsed.y).toFixed(2)+'%'];
+      if(caps[i]!=null)out.push('两市总市值 '+Number(caps[i]).toFixed(1)+' 万亿');
+      if(gdps[i]!=null)out.push('GDP(滚动四季) '+Number(gdps[i]).toFixed(1)+' 万亿');
+      return out;
+    }}};
+    if(note)note.innerHTML='⚠ 日线数据本次不可用，暂显示月度趋势（'+ys.length+' 个月）；下次抓数成功后自动切回日线。';
+  }
   if(ys.length<3)return;
-  const labels=(v.months||[]).map(m=>{const p=String(m).split('-');return p[0].slice(2)+'/'+parseInt(p[1],10);});
-  const mean=v.mean_10y,caps=v.mktcaps||[],gdps=v.gdps||[];
-  // tooltip 单独构造，避免把深层嵌套塞进对象字面量里（易错括号）
-  const ttip={callbacks:{label:c=>{
-    if(c.datasetIndex!==0)return '近10年均值 '+(mean==null?'--':Number(mean).toFixed(2)+'%');
-    const i=c.dataIndex,out=['市值/GDP '+Number(c.parsed.y).toFixed(2)+'%'];
-    if(caps[i]!=null)out.push('两市总市值 '+Number(caps[i]).toFixed(1)+' 万亿');
-    if(gdps[i]!=null)out.push('GDP(滚动四季) '+Number(gdps[i]).toFixed(1)+' 万亿');
-    return out;
-  }}};
   const ds=[
     {type:'line',label:'市值/GDP',data:ys,borderColor:'#f97316',borderWidth:2.2,
      pointRadius:0,pointHoverRadius:3.5,tension:.18,fill:false,order:1},
-    {type:'line',label:'近10年均值',data:ys.map(()=>mean),borderColor:'#94a3b8',borderWidth:1,
+    {type:'line',label:refLabel,data:ys.map(()=>mean),borderColor:'#94a3b8',borderWidth:1,
      borderDash:[5,4],pointRadius:0,pointHoverRadius:0,fill:false,order:2},
   ];
   const opt={

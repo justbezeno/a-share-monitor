@@ -607,7 +607,12 @@ def fetch_sector_live():
 # ── 9. 全 A 换手率（沪+深合并）─────────────────────────────
 # 用于 dashboard L2 pcaCrowding，之前 dashboard 只能靠 estimateTurn(volYuan) 粗估
 def _turnover_one_day(d):
-    """单日全A换手率。d = 'YYYYMMDD'。失败抛异常。"""
+    """单日全A换手率 + 沪深两市总市值。d = 'YYYYMMDD'。失败抛异常。
+
+    同时给出两套市值口径（同一批行情快照，不额外请求）：
+      mktcap_yi       = 沪主板A+科创板 + 深主板A+创业板A 的**流通**市值 → 换手率分母
+      mktcap_total_yi = 沪深「股票」全口径**总**市价总值 → 巴菲特指标卡的日线分子
+    """
     import akshare as ak
     sh = ak.stock_sse_deal_daily(date=d)
     sz = ak.stock_szse_summary(date=d)
@@ -627,6 +632,15 @@ def _turnover_one_day(d):
     if min(sh_amt, sh_cap, sz_amt, sz_cap) <= 0:
         raise ValueError(f"{d} 交易所数据不完整：沪 {sh_amt:.0f}/{sh_cap:.0f} 深 {sz_amt:.0f}/{sz_cap:.0f} 亿")
     total_amt, total_cap = sh_amt + sz_amt, sh_cap + sz_cap
+    # 另一套口径：沪深「股票」全口径**总**市价总值（沪=主板A+主板B+科创板，深=主板A+主板B+创业板A）。
+    # ★ 与中经网 macro_china_stock_market_cap 的「市价总值-上海/深圳」逐位一致（已核对 2026-07-31、
+    #   2026-08-31 两个月末：109.80 / 115.76 万亿，与月度值完全相同），所以巴菲特指标卡的日线
+    #   分子可以和它的月度分子直接拼接。注意它 ≠ 上面的 mktcap_yi（那是**流通**市值，用于换手率）。
+    sh_cap_all = float(sh[sh['单日情况'] == '市价总值']['股票'].iloc[0])
+    sz_cap_all = float(sz[sz['证券类别'] == '股票']['总市值'].sum()) / 1e8
+    # NaN 参与 < 比较恒为 False，所以市价总值要单独判，别混进上面的 min()
+    if not (sh_cap_all > 0 and sz_cap_all > 0):
+        raise ValueError(f"{d} 市价总值缺失/异常：沪 {sh_cap_all} 深 {sz_cap_all}")
     return {
         "date": f"{d[:4]}-{d[4:6]}-{d[6:8]}",
         "label": f"{int(d[4:6])}/{int(d[6:8])}",
@@ -636,6 +650,7 @@ def _turnover_one_day(d):
         "sz_mktcap_yi": round(sz_cap),
         "amount_yi": round(total_amt),
         "mktcap_yi": round(total_cap),
+        "mktcap_total_yi": round(sh_cap_all + sz_cap_all),
         "pct": round(total_amt / total_cap * 100, 3),
     }
 
@@ -670,10 +685,14 @@ def fetch_turnover():
         latest = days[-1]
         out = dict(latest)
         out['avg_pct'] = latest['pct']       # 向后兼容旧字段名
+        # mktcap_total_yi（沪深总市值）随身带出：第 15 段「巴菲特指标」的日线分子直接复用这一序列，
+        # 不再重复请求交易所接口（同一天同一份快照，两处口径也不会漂）。
         out['series'] = [{"label": x['label'], "date": x['date'],
-                          "pct": x['pct'], "amount_yi": x['amount_yi']} for x in days]
+                          "pct": x['pct'], "amount_yi": x['amount_yi'],
+                          "mktcap_total_yi": x.get('mktcap_total_yi')} for x in days]
         log(f"  ✓ turnover {latest['date']} = {latest['pct']}% "
-            f"（{latest['amount_yi']}亿/{latest['mktcap_yi']}亿），序列 {len(days)} 日")
+            f"（{latest['amount_yi']}亿/{latest['mktcap_yi']}亿），序列 {len(days)} 日；"
+            f"总市值 {latest.get('mktcap_total_yi')} 亿")
         return field(out, '沪深交易所', latest['date'])
     except Exception as e:
         log(f"  ✗ turnover 失败: {e}")
@@ -940,6 +959,10 @@ def fetch_index_trend():
         return fallback('index_trend')
 
 # ── 13. A股总市值 / GDP（巴菲特指标）────────────────────────
+# 两条序列，共用同一套分子/分母口径：
+#   ① 月度（长历史，供分位/均值统计）：分子=沪深两市**月末**市价总值，中经网转发国家统计局口径。
+#   ② 日线（近 MKT_DAILY_DAYS 个交易日，供卡片走势图）：分子=沪深交易所日频「市价总值」，
+#      已与①逐位核对一致（2026-07-31/08-31 两个月末完全相同），所以两条可以直接拼接。
 # 分子：沪深两市月末市价总值（亿元）——中经网转发国家统计局口径，月度。
 # 分母：中国 GDP 滚动四季度（TTM，亿元）。统计局按"累计值"发布（"第1-2季度" = 上半年累计），
 #       先还原成单季，再滚动 4 个季度求和，才与月度频率可比（直接用累计值会因季节性虚高）。
@@ -947,6 +970,9 @@ def fetch_index_trend():
 #   实际发布日（近十年中位）：Q1→4/17、Q2→7/15、Q3→10/18、Q4→次年1/17
 # 注意：分子只含沪深两市（不含北交所、不含港股/境外上市中概股），口径见卡片说明。
 MKT_MONTHS = int(os.environ.get('ARISK_MKT_MONTHS', '120'))
+# 日线窗口：默认 22 个交易日 ≈ 1 个自然月（与「两市成交额×换手率」卡同窗口）。
+# 上限受 turnover 的序列长度约束 —— 分子是从 turnover 的 series 里取的，超出部分自然取不到。
+MKT_DAILY_DAYS = int(os.environ.get('ARISK_MKT_DAILY_DAYS', '22'))
 _GDP_PUB = {1: (4, 17), 2: (7, 15), 3: (10, 18), 4: (1, 17)}
 
 def _cn_month(s):
@@ -961,7 +987,12 @@ def _cn_quarter(s):
     m = re.match(r'\s*(\d{4})\s*年第\s*(?:1\s*-\s*)?(\d)\s*季度', str(s))
     return (int(m.group(1)), int(m.group(2))) if m else None
 
-def fetch_mktcap_gdp():
+def fetch_mktcap_gdp(turnover=None):
+    """turnover：第 9 段的抓取结果，用来取「近 MKT_DAILY_DAYS 个交易日的沪深总市值」日线分子。
+
+    没有它（或该序列本次没带 mktcap_total_yi）时，月度部分照常产出，日线字段为空列表，
+    前端会自动退回月度趋势图 —— 不让整张卡片因为一个附加序列而失败。
+    """
     try:
         import akshare as ak
         # ① 沪深两市月末市价总值（月度，亿元）
@@ -1023,17 +1054,22 @@ def fetch_mktcap_gdp():
 
         qs = sorted(single.keys())
 
-        def _ttm_asof(Y, M):
-            """该月月底（按 28 日近似）已发布的最新季度 -> (TTM, 季度标签)"""
+        def _ttm_asof_ymd(Y, M, D):
+            """截至 (Y,M,D) 已发布的最新季度 -> (TTM, 季度标签)"""
             best = None
             for y, q in qs:
-                if _pub(y, q) <= (Y, M, 28):
+                if _pub(y, q) <= (Y, M, D):
                     best = (y, q)
                 else:
                     break                       # qs 与发布日同序，可提前结束
             if best is None:
                 return None, None
             return _ttm(*best), best
+
+        def _ttm_asof(Y, M):
+            """该月月底已发布的最新季度。按 28 日近似 —— 四个发布日（4/17、7/15、10/18、1/17）
+            都早于 28 日，所以"28 日的口径"与"月末口径"等价，月度序列不受影响。"""
+            return _ttm_asof_ymd(Y, M, 28)
 
         data = []
         for (Y, M), cap_yi in rows:
@@ -1053,6 +1089,35 @@ def fetch_mktcap_gdp():
         pct_10y = round(sum(1 for v in w if v <= cur['ratio']) / len(w) * 100)
         show = data[-MKT_MONTHS:]
 
+        # ③ 日线：近 MKT_DAILY_DAYS 个交易日。分子从 turnover 序列取（沪深交易所日频市价总值，
+        #    与上面月度分子同口径）；分母用「该交易日当天已发布」的 GDP-TTM（精确到天，不只到月）
+        #    —— 窗口若跨 4/17、7/15、10/18、次年1/17 这几个发布日，曲线上会出现一个**真实台阶**，
+        #    那是发布节奏，不是数据错误（与卡片「避免前视」的口径说明一致）。
+        dl_dates, dl_caps, dl_gdps, dl_ratios = [], [], [], []
+        series = ((turnover or {}).get('value') or {}).get('series') or []
+        for x in series[-MKT_DAILY_DAYS:]:
+            cap_yi = x.get('mktcap_total_yi')
+            if not cap_yi:
+                continue
+            try:
+                Y, M, D = (int(v) for v in str(x['date']).split('-'))
+            except (KeyError, TypeError, ValueError):
+                continue
+            t, _bq = _ttm_asof_ymd(Y, M, D)
+            if not t:
+                continue
+            dl_dates.append(x['date'])
+            dl_caps.append(round(cap_yi / 1e4, 2))
+            dl_gdps.append(round(t / 1e4, 2))
+            dl_ratios.append(round(cap_yi / t * 100, 2))
+        if len(dl_dates) >= 5:
+            log(f"  ✓ 巴菲特指标日线 {len(dl_dates)} 日 "
+                f"（{dl_dates[0]} {dl_ratios[0]}% → {dl_dates[-1]} {dl_ratios[-1]}%，"
+                f"末值市值 {dl_caps[-1]} 万亿）")
+        else:
+            log(f"  ⚠ 巴菲特指标日线仅 {len(dl_dates)} 日：turnover 序列缺 mktcap_total_yi"
+                f"（本次抓取失败复用旧值，或旧值是本版之前的结构）")
+
         log(f"  ✓ 巴菲特指标 {cur['ym']} = {cur['ratio']}% "
             f"（市值 {cur['mktcap_yi']/1e4:.1f}万亿 / GDP-TTM {cur['gdp_ttm_yi']/1e4:.1f}万亿，"
             f"分母 {cur['gdp_q']}，全历史分位 {pct_all}%，样本 {n} 月/自 {data[0]['ym']}）")
@@ -1068,8 +1133,12 @@ def fetch_mktcap_gdp():
             'ratios': [d['ratio'] for d in show],
             'mktcaps': [round(d['mktcap_yi'] / 1e4, 2) for d in show],
             'gdps': [round(d['gdp_ttm_yi'] / 1e4, 2) for d in show],
-        }, '中经网/国家统计局', cur['ym'],
-            note='分子=沪深两市月末市价总值（不含北交所）；分母=GDP滚动四季（TTM），按季度发布日对齐，避免前视')
+            # 近约 1 个月的日线（卡片走势图画的就是这组，见函数头注释）
+            'daily_dates': dl_dates, 'daily_ratios': dl_ratios,
+            'daily_caps': dl_caps, 'daily_gdps': dl_gdps,
+        }, '中经网/国家统计局+沪深交易所', cur['ym'],
+            note='分子=沪深两市市价总值（不含北交所），月度值来自中经网、日线来自沪深交易所（两者已核对一致）；'
+                 '分母=GDP滚动四季（TTM），按季度发布日对齐，避免前视')
     except Exception as e:
         log(f"  ✗ mktcap_gdp 失败: {e}")
         traceback.print_exc()
@@ -1197,8 +1266,9 @@ def main():
     out['etf_categories'] = run_section('etf_categories', fetch_etf_categories)
     log("[14/16] 抓 主要指数走势 + 成交量趋势 ...")
     out['index_trend'] = run_section('index_trend', fetch_index_trend)
-    log("[15/16] 算 A股总市值/GDP（巴菲特指标）...")
-    out['mktcap_gdp'] = run_section('mktcap_gdp', fetch_mktcap_gdp)
+    log("[15/16] 算 A股总市值/GDP（巴菲特指标，月度 + 近1个月日线）...")
+    # 日线分子复用第 9 段的 turnover 序列（含沪深总市值），不重复请求交易所接口
+    out['mktcap_gdp'] = run_section('mktcap_gdp', lambda: fetch_mktcap_gdp(out.get('turnover')))
     log("[16/16] 抓 美股主要指数走势 + 成交量趋势 ...")
     out['us_index_trend'] = run_section('us_index_trend', fetch_us_index_trend)
 
