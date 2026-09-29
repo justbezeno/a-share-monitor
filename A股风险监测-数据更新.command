@@ -1,16 +1,17 @@
 #!/bin/bash
-# install_autoupdate.sh — 一键安装「每日自动更新」（macOS launchd）
+# A股风险监测-数据更新.command — 一键安装「每日自动更新」（macOS launchd）
 #
-# ⚠️ 必须在**你自己的系统终端**里运行，不要在受限沙盒 / 受管终端内执行：
-#    这类环境中的进程通常无权操作 launchd（launchctl bootstrap 会报 Input/output error，
-#    crontab 直接 operation not permitted），属环境限制，不是配置错误。
+# ⚠️ 请在 Finder 里**双击本文件**运行（会自动打开终端窗口执行）。
+#    不要在受限沙盒 / 受管终端内执行 —— 这类环境中的进程通常无权操作 launchd
+#    （launchctl bootstrap 报 Input/output error，crontab 直接 operation not permitted），
+#    属环境限制，不是配置错误。
 #
 # 用法：
-#     cd <本目录>
-#     bash install_autoupdate.sh
+#     Finder 里双击本文件        （安装 / 重装，幂等，可反复运行）
+#     或在终端执行： bash "<本文件名>"
 #
 # 卸载：
-#     bash install_autoupdate.sh --uninstall
+#     在终端执行： bash "<本文件名>" --uninstall
 
 set -uo pipefail
 
@@ -69,5 +70,12 @@ cat <<EOF
   立即试跑一次 : launchctl kickstart -p $DOMAIN/$LABEL
   查看更新日志 : tail -f "$DIR/arisk_update.log"
   查看 launchd : tail -f "$DIR/logs/launchd_update.log" "$DIR/logs/launchd_update.err"
-  卸载         : bash "$DIR/install_autoupdate.sh" --uninstall
+  卸载         : bash "$DIR/A股风险监测-数据更新.command" --uninstall
 EOF
+
+# 从 Finder 双击运行时，脚本跑完窗口会立刻关掉，暂停一下让用户看清结果
+if [ -t 0 ]; then
+    echo
+    printf "按回车键关闭窗口…"
+    read -r _ || true
+fi

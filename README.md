@@ -21,7 +21,7 @@
 | `update_arisk_data.py` | 抓全量数据 → 生成 `arisk_data.json`（约 2–3 分钟，每段 180s 超时保护） |
 | `proxy.py` | 本地代理(8899)，供浏览器盘中实时抓数 + 妙想API 转发 |
 | `check_and_update.sh` | 检查所有日频字段的日期与 stale，任一落后/失败才更新 |
-| `install_autoupdate.sh` | 一键安装/卸载 launchd 每日自动更新（macOS，需在系统终端运行） |
+| `A股风险监测-数据更新.command` | 一键安装/卸载 launchd 每日自动更新（macOS，**Finder 里双击即可**） |
 | `run_arisk_update.sh` | 跑一次更新（被 check 调用，或手动） |
 | `start.sh` / `stop.sh` | 一键起停（代理 8899 + 静态服务器 8788） |
 | `arisk_data.json` | 数据快照（仓库内为种子数据，跑一次更新即刷新） |
@@ -122,11 +122,11 @@ bash start.sh
 
 数据只在**交易日收盘后（约 18:00 起）**发布，`check_and_update.sh` 会判断当前数据是否已覆盖最新交易日：已覆盖则秒退，落后才抓。
 
-**macOS（launchd）一键安装** —— 在**你自己的系统终端**里执行（安装 launchd 任务需要用户级权限，普通沙盒/容器内进程做不到）：
+**macOS（launchd）一键安装** —— 在 **Finder 里双击 `A股风险监测-数据更新.command`** 即可，会自动打开终端窗口完成安装（幂等，可反复运行）。安装 launchd 任务需要用户级权限，普通沙盒 / 容器，或 AI 助手进程都做不到，**必须由你在自己的登录会话里触发**。
 
 ```bash
-bash install_autoupdate.sh            # 安装并加载
-bash install_autoupdate.sh --uninstall # 卸载
+bash "A股风险监测-数据更新.command"             # 安装并加载（等价于双击）
+bash "A股风险监测-数据更新.command" --uninstall  # 卸载
 ```
 
 等价的手工步骤：见 `com.arisk.update.plist.example`，把 `__ARISK_DIR__` 换成本目录绝对路径后装入 `~/Library/LaunchAgents/`，再 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.arisk.update.plist`。每天 16:10–22:10 每小时判断一次。

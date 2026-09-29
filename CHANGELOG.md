@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-09-29 · 自动更新脚本更名：Finder 双击即可安装
+
+- `install_autoupdate.sh` → **`A股风险监测-数据更新.command`**
+  - 名字自解释；`.command` 后缀让 Finder 里**双击就能运行**（自动开终端执行），不必再记 `bash xxx.sh`。
+  - 末尾增加「按回车键关闭窗口」暂停，双击运行时能看清输出再关窗。
+  - 头部用法说明、卸载提示、README 表格与安装段落全部同步更新。
+- 补充说明：`launchctl bootstrap` 必须由**用户自己的登录会话**触发。沙盒 / 容器 / AI 助手进程内执行一律报 `Bootstrap failed: 5: Input/output error`，`crontab` 报 `operation not permitted`——这是环境限制，不是配置错误。
+
 ## 2026-09-28 · 两融日线空白的真因：缓存缺「载荷结构版本」+ 卡片重排（本地分支）
 
 需求：① ETF 资金分类流向、申万一级行业挪到「两市成交额」之后（这两个更重要）；② 报告两融余额每日趋势图是空的。
