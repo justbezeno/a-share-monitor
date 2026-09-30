@@ -5,7 +5,7 @@
 # 判据是「数据里的日期」而不是「文件修改时间」。检查所有日频字段的 date / stale：
 #   成交额/换手率(turnover, vol_7d)、ETF(etf_categories)、行业(sector_live)、
 #   HV30(hv30)、PE(pe_300)、10Y国债(bond10y)、破净率(below_net_asset)、两融(margin)、
-#   主要指数走势(index_trend)
+#   主要指数走势(index_trend)、黄金(gold)
 #   其中两融为 T+1 发布，只要求到上一个交易日
 #   1. JSON 不存在                                   → 更新
 #   2. 任一日频字段 date 落后于"应有的最新交易日"      → 更新
@@ -26,15 +26,18 @@ NONTRADING="$DIR/.arisk_nontrading_dates"
 UPDATER="$DIR/run_arisk_update.sh"
 PY="$DIR/venv/bin/python"
 
-DAILY_FIELDS="turnover vol_7d etf_categories sector_live hv30 pe_300 bond10y below_net_asset margin index_trend"
+DAILY_FIELDS="turnover vol_7d etf_categories sector_live hv30 pe_300 bond10y below_net_asset margin index_trend gold"
 # T+1 发布的字段：两融（交易所次日早上发布），只要求到"上一个交易日"。
 # 注：ETF 份额是当天发布、只是时间不固定（历史上 16:26~22:11 都有），不属于 T+1。
 T1_FIELDS="margin"
 # 低频/跨市场字段：不能按"date 等于最近交易日"判断（否则永远判落后 → 每小时空跑一次全量更新），
 # 改用"数据日期距今超过 N 天"的容忍规则。格式 字段:天数。
 #   mktcap_gdp    巴菲特指标，沪深市价总值是**月度**数据、次月中旬发布 → 容忍 75 天；
-#   us_index_trend 美股指数，美股时区/假日与 A 股不同，最后一根K线常年早 1~3 天 → 容忍 5 天。
-SLOW_FIELDS="mktcap_gdp:75 us_index_trend:5"
+#   us_index_trend 美股指数，美股时区/假日与 A 股不同，最后一根K线常年早 1~3 天 → 容忍 5 天；
+#   us10y         美国10年期国债，跟随美国交易日历（感恩节/圣诞等连休），与 A 股不同步 → 容忍 5 天；
+#   gold          伦敦金现 XAU/USD（2026-09-30 由上海金切换），跟随国际日历：周一到周五 24 小时
+#                 交易、几乎不休市（仅圣诞/元旦），故按普通日频判断即可。
+SLOW_FIELDS="mktcap_gdp:75 us_index_trend:5 us10y:5"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 

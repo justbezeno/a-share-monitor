@@ -303,6 +303,62 @@ def fetch_bond10y():
         log(f"  ✗ bond10y 失败: {e}")
         return fallback('bond10y')
 
+# ── 2b. 美国10年期国债收益率（跨市场参照，不参与 ERP/决策模型）──────────
+# 与 bond10y 共用 _bond_df() 的同一份 DataFrame —— akshare 的中美债券收益率表里本就含
+# 「美国国债收益率10年」列，白拿，不额外发请求。独立成段是因为它不属于 DM_INPUTS：
+# 混进 bond10y 会让 ERP / 决策模型误用美国利率。中美国债利差 = 本段 − bond10y。
+US10Y_DAYS = int(os.environ.get('ARISK_US10Y_DAYS', '30'))
+
+def fetch_us10y():
+    try:
+        df = _bond_df()
+        col = '美国国债收益率10年'
+        if col not in df.columns:
+            raise ValueError(f'列缺失 {col}（实际列：{list(df.columns)}）')
+        df = df[['日期', col]].dropna().sort_values('日期').tail(US10Y_DAYS)
+        if len(df) < 6:
+            raise ValueError(f'有效天数仅 {len(df)}')
+        hist = [{'d': f'{d.month}/{d.day}', 'v': round(float(v), 2)}
+                for d, v in zip(__import__('pandas').to_datetime(df['日期']), df[col])]
+        latest = round(float(df[col].iloc[-1]), 2)
+        d = str(df['日期'].iloc[-1])[:10]
+        log(f"  ✓ us10y latest={latest}% ({len(hist)} 天) 日期 {d}")
+        return field({'latest': latest, 'hist': hist, 'date': d}, '英为财情(经akshare)', d,
+                     note='美国10年期国债收益率；与「10Y国债」同源同频，中美利差＝本值 − 中国10Y')
+    except Exception as e:
+        log(f"  ✗ us10y 失败: {e}")
+        return fallback('us10y')
+
+# ── 2c. 上海金 Au99.99（避险资产参照）──────────────────────────────
+# 上金所现货基准价，元/克。用现货而非沪金期货主连：期货主连换月会产生与行情无关的
+# 跳变，作为"走势"参照会误导；现货是实物定价基准，曲线连续。
+GOLD_DAYS = int(os.environ.get('ARISK_GOLD_DAYS', '30'))
+
+def fetch_gold():
+    # 口径＝伦敦金现 XAU/USD（国际现货金基准，美元/盎司），数据源新浪财经外盘日K。
+    # 2026-09-30 由「上海金 Au99.99（元/克）」切换而来：用户要看国际通用口径做横向对比。
+    # 仍用现货而非 COMEX 期货主连：主连换月会产生与行情无关的跳变，当"走势"看会误导。
+    # 注意：最后一根K线在欧洲/美洲盘未收完时是盘中价，收盘后才会固定；卡片脚注已说明。
+    try:
+        import akshare as ak
+        df = _cached_df('gold_xau', lambda: ak.futures_foreign_hist(symbol='XAU'))
+        df = df[['date', 'close']].dropna().sort_values('date').tail(GOLD_DAYS)
+        if len(df) < 6:
+            raise ValueError(f'有效天数仅 {len(df)}')
+        hist = [{'d': f'{d.month}/{d.day}', 'v': round(float(v), 2)}
+                for d, v in zip(__import__('pandas').to_datetime(df['date']), df['close'])]
+        latest = round(float(df['close'].iloc[-1]), 2)
+        prev = round(float(df['close'].iloc[-2]), 2) if len(df) >= 2 else None
+        chg = None if prev is None else round(latest - prev, 2)
+        chg_pct = None if not prev else round((latest / prev - 1) * 100, 2)
+        d = str(df['date'].iloc[-1])[:10]
+        log(f"  ✓ gold XAU/USD={latest} 美元/盎司 ({len(hist)} 天) 日变动 {chg_pct:+.2f}% 日期 {d}")
+        return field({'latest': latest, 'hist': hist, 'chg': chg, 'chg_pct': chg_pct, 'date': d},
+                     '新浪财经(外盘)', d, note='伦敦金现 XAU/USD 收盘价（美元/盎司）')
+    except Exception as e:
+        log(f"  ✗ gold 失败: {e}")
+        return fallback('gold')
+
 # ── 3. 沪深300 PE ─────────────────────────────────────────
 def fetch_pe_300():
     try:
@@ -598,7 +654,19 @@ def fetch_sector_live():
                 if r: out.append(r)
         out.sort(key=lambda x: x['ret60'], reverse=True)
         d = max(x['date'] for x in out)
+        # 数据源滞后侦察：申万宏源官网对当日数据有 1~2 天发布延迟。实测 2026-09-28/29 两天的数据
+        # 直到 9/30 上午才发布 —— 期间 9/28 22:54 ~ 9/29 22:44 共 7 次抓取，拿到的都是 09-24，
+        # 而脚本每次都「成功」（31/31），前端只表现为徽标标红，极易被误判成看板故障。
+        # 数据本身有效、只是时点旧，所以不判失败；只把落差显式打进日志，便于区分
+        # 「数据源还没发布」和「脚本抓取失败」。
+        try:
+            lag = (datetime.now().date() - datetime.strptime(d, '%Y-%m-%d').date()).days
+        except Exception:
+            lag = 0
         log(f"  ✓ sector_live {len(out)}/{len(items)} 行业，最强 {out[0]['n']} {out[0]['ret60']}% 日期 {d}")
+        if lag >= 3:
+            log(f"  ⚠ sector_live 数据源滞后：最新仅到 {d}（距今 {lag} 天）"
+                f"，申万宏源官网当日数据常有 1~2 天延迟，非抓取失败")
         return field(out, '申万一级指数', d, note='today=最新收盘日涨跌幅，ret60=60日累计涨跌幅')
     except Exception as e:
         log(f"  ✗ sector_live 失败: {e}")
@@ -1118,6 +1186,29 @@ def fetch_mktcap_gdp(turnover=None):
             log(f"  ⚠ 巴菲特指标日线仅 {len(dl_dates)} 日：turnover 序列缺 mktcap_total_yi"
                 f"（本次抓取失败复用旧值，或旧值是本版之前的结构）")
 
+        # ④ 卡片顶部「当前」改用**日线口径**（最新交易日），并给出日环比。
+        #    分位必须跟着换：分位＝「当前值在历史分布里的位置」，当前值换成日线却沿用按
+        #    月末值算的分位，会出现「当前 76.92% ｜ 全历史分位 95%」这种自相矛盾的展示。
+        #    分位样本仍是月度全历史序列（分位本来就只有月度频率才有完整可比样本），
+        #    只是把「当前值」换成最新交易日 → 前端须在脚注写明这一点。
+        dc_date = dc_ratio = dc_cap_wy = dc_gdp_wy = None
+        dc_chg_pp = dc_chg_cap_wy = dc_chg_cap_pct = dc_pct_all = dc_pct_10y = None
+        if dl_dates:
+            dc_date, dc_ratio = dl_dates[-1], dl_ratios[-1]
+            dc_cap_wy, dc_gdp_wy = dl_caps[-1], dl_gdps[-1]
+            if len(dl_ratios) >= 2:
+                dc_chg_pp = round(dl_ratios[-1] - dl_ratios[-2], 2)
+                dc_chg_cap_wy = round(dl_caps[-1] - dl_caps[-2], 2)
+                if dl_caps[-2]:
+                    dc_chg_cap_pct = round((dl_caps[-1] / dl_caps[-2] - 1) * 100, 2)
+            dc_pct_all = round(sum(1 for x in ratios if x <= dc_ratio) / n * 100)
+            dc_pct_10y = round(sum(1 for x in w if x <= dc_ratio) / len(w) * 100)
+            log(f"  ✓ 卡片顶部日线口径：{dc_date} = {dc_ratio}%"
+                + (f"（较前一交易日 {dc_chg_pp:+.2f}pp）" if dc_chg_pp is not None else "")
+                + f"，市值 {dc_cap_wy} 万亿，全历史分位 {dc_pct_all}% / 近10年 {dc_pct_10y}%")
+        else:
+            log("  ⚠ 日线序列为空，卡片顶部回退月度口径（前端会自动识别）")
+
         log(f"  ✓ 巴菲特指标 {cur['ym']} = {cur['ratio']}% "
             f"（市值 {cur['mktcap_yi']/1e4:.1f}万亿 / GDP-TTM {cur['gdp_ttm_yi']/1e4:.1f}万亿，"
             f"分母 {cur['gdp_q']}，全历史分位 {pct_all}%，样本 {n} 月/自 {data[0]['ym']}）")
@@ -1136,9 +1227,19 @@ def fetch_mktcap_gdp(turnover=None):
             # 近约 1 个月的日线（卡片走势图画的就是这组，见函数头注释）
             'daily_dates': dl_dates, 'daily_ratios': dl_ratios,
             'daily_caps': dl_caps, 'daily_gdps': dl_gdps,
-        }, '中经网/国家统计局+沪深交易所', cur['ym'],
+            # 卡片顶部「当前」＝最新交易日（日线口径）；cur_pct_* 是该值在月度全历史序列
+            # 里的真实分位。日线缺失时这些为 None，前端自动退回上面的月度字段。
+            'cur_date': dc_date, 'cur_ratio': dc_ratio,
+            'cur_cap_wy': dc_cap_wy, 'cur_gdp_wy': dc_gdp_wy,
+            'cur_chg_pp': dc_chg_pp, 'cur_chg_cap_wy': dc_chg_cap_wy,
+            'cur_chg_cap_pct': dc_chg_cap_pct,
+            'cur_pct_all': dc_pct_all, 'cur_pct_10y': dc_pct_10y,
+            'cur_pct_basis_n': n,
+        }, '中经网/国家统计局+沪深交易所',
+            dc_date or cur['ym'],
             note='分子=沪深两市市价总值（不含北交所），月度值来自中经网、日线来自沪深交易所（两者已核对一致）；'
-                 '分母=GDP滚动四季（TTM），按季度发布日对齐，避免前视')
+                 '分母=GDP滚动四季（TTM），按季度发布日对齐，避免前视；'
+                 '顶部「当前」及分位为最新交易日（日线口径），分位样本为月度全历史序列')
     except Exception as e:
         log(f"  ✗ mktcap_gdp 失败: {e}")
         traceback.print_exc()
@@ -1171,8 +1272,16 @@ def fetch_us_index_trend():
                 raise ValueError(f"{name} 仅 {len(df)} 个交易日，不足 {n + 1}")
             df = df.tail(n + 1).reset_index(drop=True)   # 多取一天用于算 n 日涨跌
             vmap = dict(zip(df['date'], df['volume']))
+            # ★ dates 与 closes 必须一一对应、等长：两者都会被前端当作同一根 K 线的
+            #   日期与收盘价按索引直接配对。这里 df 有 n+1 行（第 0 行是算涨跌用的基准
+            #   前值），所以 dates 切片 [1:] 后，closes 也必须同步切成 [1:]。
+            #   历史 bug（2026-09-30 修）：closes 曾保留全部 n+1 个，比 dates 多一个，
+            #   导致前端绘图整体错位一天 —— 图上末点画的是倒数第二天的价，末点真实值
+            #   被挤出画布；表现为「卡片数字显示下跌、趋势线最后一段却在涨」。
+            #   chg1d/chg5d/chg60d/hi/lo/pos 仍用完整的 closes_all（它们需要那个基准值）。
             dates = df['date'].tolist()[1:]
             closes_all = [round(float(x), 2) for x in df['close'].tolist()]
+            closes = closes_all[1:]                    # ← 与 dates 等长
             vols = [(round(float(vmap[d]) / 1e8, 2) if vmap.get(d) else None) for d in dates]
             last = dates[-1]
             as_of = last if as_of is None else max(as_of, last)
@@ -1182,8 +1291,8 @@ def fetch_us_index_trend():
             vol5 = round(sum(v5) / len(v5), 1) if v5 else None
             vol20 = round(sum(v20) / len(v20), 1) if v20 else None
             vol_ratio = round(vol5 / vol20, 2) if (vol5 and vol20) else None
-            hi, lo = max(closes_all[1:]), min(closes_all[1:])
-            pos = round((closes_all[-1] - lo) / (hi - lo) * 100) if hi > lo else 50
+            hi, lo = max(closes), min(closes)
+            pos = round((closes[-1] - lo) / (hi - lo) * 100) if hi > lo else 50
 
             items.append({
                 "key": key, "name": name, "market": market,
@@ -1193,7 +1302,7 @@ def fetch_us_index_trend():
                 "chg20d": _ret(closes_all, 20), "chg60d": _ret(closes_all, n),
                 "hi": round(hi, 2), "lo": round(lo, 2), "pos": pos,
                 "vol5": vol5, "vol20": vol20, "vol_ratio": vol_ratio,
-                "dates": dates, "closes": closes_all, "vols": vols,
+                "dates": dates, "closes": closes, "vols": vols,
                 "vol_unit": '亿股',
             })
             log(f"  ✓ {name} {last} close={closes_all[-1]} "
@@ -1238,39 +1347,43 @@ def main():
         "generated_date": datetime.now().strftime('%Y-%m-%d'),
     }
 
-    log("[1/16] 抓 社融存量同比 ...")
+    log("[1/18] 抓 社融存量同比 ...")
     out['credit_yoy'] = run_section('credit_yoy', fetch_credit_yoy)
-    log("[2/16] 抓 10Y 国债 ...")
+    log("[2/18] 抓 10Y 国债 ...")
     out['bond10y'] = run_section('bond10y', fetch_bond10y)
-    log("[3/16] 抓 沪深300 PE ...")
+    log("[3/18] 抓 沪深300 PE ...")
     out['pe_300'] = run_section('pe_300', fetch_pe_300)
-    log("[4/16] 算 ERP 近5年真实分位 ...")
+    log("[4/18] 算 ERP 近5年真实分位 ...")
     out['erp_history'] = run_section('erp_history', fetch_erp_history)
-    log("[5/16] 抓 破净率 ...")
+    log("[5/18] 抓 破净率 ...")
     out['below_net_asset'] = run_section('below_net_asset', fetch_below_net_asset)
-    log("[6/16] 算 HV30 ...")
+    log("[6/18] 算 HV30 ...")
     out['hv30'] = run_section('hv30', fetch_hv30)
-    log("[7/16] 抓 两融 ...")
+    log("[7/18] 抓 两融 ...")
     out['margin'] = run_section('margin', fetch_margin)
-    log("[8/16] 抓 全A 换手率 / 成交额（交易所）...")
+    log("[8/18] 抓 全A 换手率 / 成交额（交易所）...")
     out['turnover'] = run_section('turnover', fetch_turnover)
-    log("[9/16] 整理 成交额序列（近约 1 个月，复用 turnover）...")
+    log("[9/18] 整理 成交额序列（近约 1 个月，复用 turnover）...")
     out['vol_7d'] = run_section('vol_7d', lambda: fetch_vol_7d(out['turnover']))
-    log("[10/16] 抓 近5日涨跌停 ...")
+    log("[10/18] 抓 近5日涨跌停 ...")
     out['limit_7d'] = run_section('limit_7d', fetch_limit_7d)
-    log("[11/16] 抓 申万31行业60日 ...")
+    log("[11/18] 抓 申万31行业60日 ...")
     out['sector_live'] = run_section('sector_live', fetch_sector_live)
-    log("[12/16] 抓 偏股基金新发 ...")
+    log("[12/18] 抓 偏股基金新发 ...")
     out['fund_issuance'] = run_section('fund_issuance', fetch_fund_issuance)
-    log("[13/16] 抓 ETF 资金分类流向（沪市60日）...")
+    log("[13/18] 抓 ETF 资金分类流向（沪市60日）...")
     out['etf_categories'] = run_section('etf_categories', fetch_etf_categories)
-    log("[14/16] 抓 主要指数走势 + 成交量趋势 ...")
+    log("[14/18] 抓 主要指数走势 + 成交量趋势 ...")
     out['index_trend'] = run_section('index_trend', fetch_index_trend)
-    log("[15/16] 算 A股总市值/GDP（巴菲特指标，月度 + 近1个月日线）...")
+    log("[15/18] 算 A股总市值/GDP（巴菲特指标，月度 + 近1个月日线）...")
     # 日线分子复用第 9 段的 turnover 序列（含沪深总市值），不重复请求交易所接口
     out['mktcap_gdp'] = run_section('mktcap_gdp', lambda: fetch_mktcap_gdp(out.get('turnover')))
-    log("[16/16] 抓 美股主要指数走势 + 成交量趋势 ...")
+    log("[16/18] 抓 美股主要指数走势 + 成交量趋势 ...")
     out['us_index_trend'] = run_section('us_index_trend', fetch_us_index_trend)
+    log("[17/18] 抓 美国10年期国债收益率（跨市场参照，复用 10Y 债券缓存）...")
+    out['us10y'] = run_section('us10y', fetch_us10y)
+    log("[18/18] 抓 上海金 Au99.99（避险资产参照）...")
+    out['gold'] = run_section('gold', fetch_gold)
 
     fields = {k: v for k, v in out.items() if _is_wrapped(v)}
     missing = [k for k, v in fields.items() if v['value'] is None]

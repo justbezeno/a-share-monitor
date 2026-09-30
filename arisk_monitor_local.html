@@ -1,7 +1,7 @@
 <html lang="zh-CN"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>A股风险监测系统 v11</title>
+<title>A股风险监测系统</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="vendor/html-to-image.js"></script>
 <style>
@@ -180,7 +180,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 <div class="loader gone" id="loader"><div class="ring"></div><div class="lmsg" id="lmsg">正在初始化...</div><div class="lstep" id="lstep"></div></div>
 
 <header class="hdr">
-  <div><div class="logo">A-RISK<em>/MONITOR</em></div><div style="font-size:10.5px;color:#6366f1;font-family:var(--mono);margin-top:1px">v11 · 价量散点 · 两融二阶导 · 四区作战</div></div>
+  <div><div class="logo">A-RISK<em>/MONITOR</em></div></div>
   <div class="hdr-r">
     <div class="dot dot-cache" id="sdot"></div><span class="ts" id="stxt">加载中</span><span class="ts" id="ts">--</span>
     <button class="btn" onclick="loadData(true)">↻ 刷新</button>
@@ -211,19 +211,24 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <div class="card-title" style="margin:0">A股总市值 / GDP（巴菲特指标）</div>
         <span class="vbadge" data-meta="mktcap_gdp"></span>
       </div>
-      <div style="font-size:11.5px;color:var(--muted);font-family:var(--mono)" id="mg-asof">加载中…</div>
+      <!-- 卡内不再重复「数据日期 …」：来源+日期由右上角徽标承载。
+           原先那行还兼着「日线不可用 → 已退回月度口径」的降级提示，现移到下方大数字标签 #mg-label 上，
+           否则日线抓取失败时顶部会静默显示月末值、被误读成当日值。 -->
     </div>
     <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:baseline;margin-bottom:8px">
       <div>
-        <div style="font-size:11.5px;color:var(--muted);margin-bottom:2px">当前</div>
-        <div style="font-family:var(--mono);font-size:31px;font-weight:700;line-height:1.1" id="mg-ratio">--</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:2px" id="mg-label">最新交易日</div>
+        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+          <span style="font-family:var(--mono);font-size:31px;font-weight:700;line-height:1.1" id="mg-ratio">--</span>
+          <span id="mg-chg" style="font-family:var(--mono);font-size:14.5px;font-weight:600">--</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.85;color:var(--muted)">
         <div>全历史分位 <b id="mg-pctall" style="font-family:var(--mono);color:var(--text)">--</b> <span style="font-size:11px">（<span id="mg-histn">--</span> 个月，自 <span id="mg-histfrom">--</span>）</span></div>
         <div>近10年分位 <b id="mg-pct10" style="font-family:var(--mono);color:var(--text)">--</b> ｜ 近10年均值 <span id="mg-mean10" style="font-family:var(--mono)">--</span></div>
       </div>
       <div style="font-size:12.5px;line-height:1.85;color:var(--muted)">
-        <div>沪深两市总市值 <b id="mg-cap" style="font-family:var(--mono);color:var(--text)">--</b></div>
+        <div>沪深两市总市值 <b id="mg-cap" style="font-family:var(--mono);color:var(--text)">--</b> <span id="mg-cap-chg" style="font-size:11px;font-family:var(--mono)"></span></div>
         <div>GDP（滚动四季） <b id="mg-gdp" style="font-family:var(--mono);color:var(--text)">--</b> <span id="mg-gdpq" style="font-size:11px"></span></div>
       </div>
       <div style="font-size:12.5px;line-height:1.85;color:var(--muted)">
@@ -235,10 +240,10 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div style="position:relative;height:175px"><canvas id="c-mktcap"></canvas></div>
     <div class="fnote" style="margin-top:10px">
       <strong>口径说明</strong>
-      <div class="fn-item"><b>走势图</b>＝近 <b>约 30 天（22 个交易日）</b>的日线。分子用<b>沪深交易所日频「市价总值」</b>（沪＝主板A+主板B+科创板，深＝主板A+主板B+创业板A），已与下面月度口径的分子<b>逐位核对一致</b>（2026-07-31、08-31 两个月末完全相同，可无缝拼接）—— 所以图上 8 月末那个点与上方「当前」是同一个数。</div>
-      <div class="fn-item"><b>分子</b>＝沪深两市<b>市价总值</b>（<b>不含北交所</b>，也不含港股与境外上市中概股）。注意上方「当前 / 分位 / 均值」是<b>月末月度样本</b>（分子为中经网转发的国家统计局月末口径，次月中旬才发布），所以月度值会滞后于图上日线；两者口径相同、只是时点不同。</div>
+      <div class="fn-item"><b>走势图</b>＝近 <b>约 30 天（22 个交易日）</b>的日线。分子用<b>沪深交易所日频「市价总值」</b>（沪＝主板A+主板B+科创板，深＝主板A+主板B+创业板A），已与月度口径的分子<b>逐位核对一致</b>（2026-07-31、08-31 两个月末完全相同，可无缝拼接）—— 所以图上 8 月末那个点与上方「上次月末」是同一个数。</div>
+      <div class="fn-item"><b>分子</b>＝沪深两市<b>市价总值</b>（<b>不含北交所</b>，也不含港股与境外上市中概股）。上方「<b>最新交易日</b> / 总市值 / GDP / 分位」<b>与走势图末点同为日线口径</b>，已不再滞后于图上日线；「上次月末」为月度样本（分子为中经网转发的国家统计局月末口径，次月中旬才发布），仅作对照。</div>
       <div class="fn-item"><b>分母</b>＝中国 GDP <b>滚动四季（TTM）</b>。统计局按「累计值」发布（"第1-2季度"＝上半年累计），这里先还原成单季、再滚动 4 个季度求和，才与月度频率可比；且只用<b>该时点之前已发布</b>的季度（发布日近似 Q1→4/17、Q2→7/15、Q3→10/18、Q4→次年1/17），避免前视偏差 —— 因此曲线在 4/7/10/次年1 月会出现台阶，是发布节奏所致，不是数据错误。</div>
-      <div class="fn-item"><b>分位</b>为<b>真实历史分位</b>（当前值在样本中的百分位），不是区间线性映射。该比值越高＝股市相对实体经济越贵。</div>
+      <div class="fn-item"><b>分位</b>为<b>真实历史分位</b>（「最新交易日」的值在样本中的百分位），不是区间线性映射。该比值越高＝股市相对实体经济越贵。<b>分位样本是月度全历史序列</b>（224 个月，自 2008-01）—— 分位只有月度频率才有完整可比样本，而「当前值」取最新交易日，故两者<b>频率不同、但时点一致</b>（都截至最新交易日）。「全历史区间 / 均值 / 近10年均值」同为由该月度序列算出的分布统计。</div>
     </div>
   </div>
   <div class="card full fi" style="animation-delay:.07s">
@@ -247,7 +252,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
         <div class="card-title" style="margin:0">美股主要指数 · 走势与成交量趋势</div>
         <span class="vbadge" data-meta="us_index_trend"></span>
       </div>
-      <div style="font-size:11.5px;color:var(--muted);font-family:var(--mono)" id="usidx-asof">加载中…</div>
+      <!-- 卡内不再重复「数据日期 …」：来源+日期统一由右上角徽标承载（同黄金/美债卡） -->
     </div>
     <div class="idx-grid" id="usidx-grid">
       <div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:16px;font-size:12.5px">加载美股指数数据中...</div>
@@ -255,17 +260,71 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
     <div class="fnote" style="margin-top:10px">
       <strong>口径说明</strong>
       <div class="fn-item"><b>成交量</b>单位为<b>亿股</b>，取新浪美股指数日K的 volume，含义是<b>该指数所覆盖标的的当日成交股数</b>：标普500＝其成分股合计、纳斯达克综合＝纳斯达克市场整体。<b>两者覆盖范围不同，量能不能横向比大小</b>，只看各自变化趋势。</div>
-      <div class="fn-item">美股交易日／时区与 A 股不同：<b>最后一根K线通常比 A 股早 1 个交易日</b>（A 股为周一收盘数据时，美股最新一般还停在上一个交易日），因此本卡片的数据日期以自身标注为准。</div>
+      <div class="fn-item">美股交易日／时区与 A 股不同：<b>最后一根K线通常比 A 股早 1 个交易日</b>（A 股为周一收盘数据时，美股最新一般还停在上一个交易日），因此本卡片的数据日期以右上角徽标为准。</div>
       <div class="fn-item">每张图<b>右上角</b>为最新收盘点位，紧随其后的是<b>当日涨跌</b>（较前一交易日收盘），两者同色；配色与 A 股一致：<b style="color:#dc2626">红涨</b> / <b style="color:#0a7c52">绿跌</b>、平盘为灰。图内左轴收盘点位、右轴（不显示刻度）成交量。</div>
     </div>
   </div>
+  <!-- 黄金 / 美债：两张走势卡并排一行，各占 1/2 宽（复用 row3b 两列网格；
+       「分享」按钮注入选择器已覆盖 '#pg > .row3b > .card'，无需额外改动） -->
+  <div class="row3b fi" style="animation-delay:.075s">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="card-title" style="margin:0">美国10年期国债收益率 · 走势</div>
+        <span class="vbadge" data-meta="us10y"></span>
+      </div>
+      <!-- 数据日期不在此重复展示：右上角徽标（data-meta="us10y"）已含来源 + 日期 + 估算/滞后标记 -->
+    </div>
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+      <span style="font-family:var(--mono);font-size:28px;font-weight:700;line-height:1.1" id="us10y-big">--</span>
+      <span id="us10y-chg" style="font-family:var(--mono);font-size:14px;font-weight:600">--</span>
+    </div>
+    <div id="us10y-sub" style="font-size:11.5px;color:var(--muted);margin-bottom:8px;font-family:var(--mono)">--</div>
+    <div style="position:relative;height:150px"><canvas id="c-us10y"></canvas></div>
+    <div style="margin-top:8px;display:flex;gap:16px;font-size:11.5px;flex-wrap:wrap">
+      <span style="color:var(--muted)">周变化 <strong id="us10y-w1" style="font-family:var(--mono)">--</strong></span>
+      <span style="color:var(--muted)">MA5 <strong id="us10y-ma5" style="font-family:var(--mono)">--</strong></span>
+      <span style="color:var(--muted)">中美10年利差 <strong id="us10y-spread" style="font-family:var(--mono)">--</strong></span>
+    </div>
+    <div class="fnote" style="margin-top:10px">
+      <strong>口径说明</strong>
+      <div class="fn-item">本卡画的是<b>美国</b>10年期国债收益率（与同页「10Y 国债」＝中国口径区分）。数据与「10Y 国债」<b>来自同一张中美债券收益率表、同源同频</b>，只是取了美国那一列。本卡<b>不参与 ERP / 决策模型</b>，只作跨市场参照。</div>
+      <div class="fn-item"><b>中美10年利差</b>＝中国10Y − 美国10Y。当前深度倒挂，反映人民币资产的相对吸引力与汇率压力；该行为参考值，不单独画线。</div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="card-title" style="margin:0">伦敦金现 XAU · 走势</div>
+        <span class="vbadge" data-meta="gold"></span>
+      </div>
+      <!-- 同上：日期由徽标（data-meta="gold"）统一承载，卡内不再重复 -->
+    </div>
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+      <span style="font-family:var(--mono);font-size:28px;font-weight:700;line-height:1.1" id="gold-big">--</span>
+      <span id="gold-chg" style="font-family:var(--mono);font-size:14px;font-weight:600">--</span>
+    </div>
+    <div id="gold-sub" style="font-size:11.5px;color:var(--muted);margin-bottom:8px;font-family:var(--mono)">--</div>
+    <div style="position:relative;height:150px"><canvas id="c-gold"></canvas></div>
+    <div style="margin-top:8px;display:flex;gap:16px;font-size:11.5px;flex-wrap:wrap">
+      <span style="color:var(--muted)">周变化 <strong id="gold-w1" style="font-family:var(--mono)">--</strong></span>
+      <span style="color:var(--muted)">MA5 <strong id="gold-ma5" style="font-family:var(--mono)">--</strong></span>
+      <span style="color:var(--muted)">区间变化 <strong id="gold-range" style="font-family:var(--mono)">--</strong></span>
+    </div>
+    <div class="fnote" style="margin-top:10px">
+      <strong>口径说明</strong>
+      <div class="fn-item"><b>标的</b>＝<b>伦敦金现 XAU/USD</b>（国际现货金基准价，<b>美元/盎司</b>），数据源新浪财经外盘日K。用现货而非 COMEX 期货主连：主连换月会产生与行情无关的跳变，当"走势"看会误导。</div>
+      <div class="fn-item">黄金是<b>避险/实际利率</b>的参照物，与美债收益率（实际利率的代理）常呈反向关系，可对照左侧美债卡一起看。伦敦金 24 小时交易、节假日与 A 股不同，<b>当日最后一根K线在欧洲/美洲盘收完前是盘中价</b>，次日会固定；数据日期以右上角徽标为准。</div>
+    </div>
+  </div>
+  </div><!-- /row3b 黄金·美债 -->
   <div class="card full fi" style="animation-delay:.09s">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="card-title" style="margin:0">主要指数 · 走势与成交量趋势</div>
         <span class="vbadge" data-meta="index_trend"></span>
       </div>
-      <div style="font-size:11.5px;color:var(--muted);font-family:var(--mono)" id="idx-asof">加载中…</div>
+      <!-- 同上：日期由徽标（data-meta="index_trend"）承载，卡内不再重复 -->
     </div>
     <div class="idx-grid" id="idx-grid">
       <div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:16px;font-size:12.5px">加载指数数据中...</div>
@@ -562,7 +621,7 @@ html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15
 const $=id=>document.getElementById(id);
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';
-const CKEY='arisk_v21',CTTL=6*3600*1000,SCHEMA=21;
+const CKEY='arisk_v25',CTTL=6*3600*1000,SCHEMA=24;
 // 缓存带两个版本戳，任一不符即作废并强制重拉：
 //   gen    = 预构建 JSON 的 generated_at —— 后台数据一更新就失效，无需手动 localStorage.clear()
 //   schema = 前端「载荷结构」版本 —— 只有页面代码改动导致缓存对象**字段增减**时才失效
@@ -570,7 +629,12 @@ const CKEY='arisk_v21',CTTL=6*3600*1000,SCHEMA=21;
 //   d.marginDailySeries，而用户浏览器里的缓存还是新增字段之前的旧结构（gen 未变 →
 //   判定有效）→ 渲染时取不到该字段，主图被清空，看起来就是「两融每日趋势是空的」。
 //   **凡改动缓存对象的字段结构，必须把 SCHEMA 和 CKEY 一起 +1。**
-try{localStorage.removeItem('arisk_v19');localStorage.removeItem('arisk_v20');}catch(e){}   // 清掉旧几代结构缓存，别留在浏览器里当垃圾
+// 追加①：巴菲特指标卡顶部由「月度口径」改为「日线口径（最新交易日）」→ 载荷新增 cur_* 字段
+// 追加②：新增黄金 / 美债10Y 两张走势卡 → 载荷新增 gold / us10y
+// 追加③：gold 由「上海金 Au99.99（元/克）」换成「伦敦金现 XAU/USD（美元/盎司）」——
+//   字段结构未变（仍 latest/hist/chg/chg_pct/date），故 SCHEMA 不动；但**数值口径**变了，
+//   旧缓存里还存着 897 元/克 的旧值，必须升 CKEY 让浏览器丢掉它。
+try{localStorage.removeItem('arisk_v19');localStorage.removeItem('arisk_v20');localStorage.removeItem('arisk_v21');localStorage.removeItem('arisk_v22');localStorage.removeItem('arisk_v23');localStorage.removeItem('arisk_v24');}catch(e){}   // 清掉旧几代结构缓存，别留在浏览器里当垃圾
 const saveC=(d,gen)=>{try{localStorage.setItem(CKEY,JSON.stringify({ts:Date.now(),gen:gen||null,schema:SCHEMA,d}));}catch(e){}};
 const loadC=(expectGen)=>{try{
   const r=JSON.parse(localStorage.getItem(CKEY)||'null');
@@ -595,11 +659,11 @@ let _prebuiltData=null;
 /* ═══ 数据元信息（source / date / is_estimate / stale）═══
    update_arisk_data.py 输出的每个字段统一为 {value,source,date,is_estimate,stale[,note]}。
    卡片上的来源徽标、「估算」标记、日期、stale 提示一律从这里读取，不在 HTML 里写死。 */
-const META_KEYS=['pe_300','bond10y','erp_history','below_net_asset','vol_7d','turnover','hv30','credit_yoy','margin','sector_live','etf_categories','fund_issuance','index_trend','mktcap_gdp','us_index_trend'];
+const META_KEYS=['pe_300','bond10y','erp_history','below_net_asset','vol_7d','turnover','hv30','credit_yoy','margin','sector_live','etf_categories','fund_issuance','index_trend','mktcap_gdp','us_index_trend','gold','us10y'];
 const META_STATIC={source:'静态占位',date:null,is_estimate:true,stale:true};
 const META_LABEL={pe_300:'PE',bond10y:'10Y国债',erp_history:'ERP历史',below_net_asset:'破净率',vol_7d:'成交额',turnover:'换手率',hv30:'HV30',
   credit_yoy:'社融',margin:'两融',sector_live:'行业',etf_categories:'ETF',fund_issuance:'偏股基金新发',index_trend:'指数',
-  mktcap_gdp:'市值/GDP',us_index_trend:'美股指数'};
+  mktcap_gdp:'市值/GDP',us_index_trend:'美股指数',gold:'黄金',us10y:'美债10Y'};
 const isWrapped=w=>!!(w&&typeof w==='object'&&'value' in w&&'stale' in w);
 const valOf=w=>isWrapped(w)?w.value:null;
 const metaOf=w=>isWrapped(w)&&w.value!=null
@@ -616,7 +680,7 @@ function staleText(m){
 /* 数据日期是否已过旧（按自然日粗判，覆盖周末+1天假期；长假期间会如实提示"停留在节前"）：
    日频 >4 天（两融为 T+1 发布，>5 天）；社融（月频，次月中旬发布）数据月份距今 >80 天 */
 const T1_META_KEYS=['margin'];   // 两融为交易所次日发布；ETF 份额当天发布（时间不固定），按普通日频判断
-const DAILY_META_KEYS=['pe_300','bond10y','erp_history','below_net_asset','vol_7d','turnover','hv30','margin','sector_live','etf_categories','index_trend'];
+const DAILY_META_KEYS=['pe_300','bond10y','erp_history','below_net_asset','vol_7d','turnover','hv30','margin','sector_live','etf_categories','index_trend','gold'];
 function isAged(k,m){
   if(!m||!m.date)return false;
   const t=new Date(m.date.length===7?m.date+'-01':m.date).getTime();
@@ -629,6 +693,8 @@ function isAged(k,m){
   if(k==='mktcap_gdp')return days>75;
   // 美股指数：美股时区/假日与 A 股不同，最后一根K线常年早 1~3 天 → 容忍 6 天
   if(k==='us_index_trend')return days>6;
+  // 美债10Y：跟随美国交易日历（感恩节/圣诞等连休），与 A 股不同步 → 同样容忍 6 天
+  if(k==='us10y')return days>6;
   return false;
 }
 /* 字段是否"不可信为当前值"：脚本标了 stale、日期过旧、或只有静态占位 */
@@ -654,6 +720,8 @@ function renderSourceNote(meta){
     ['主要指数',src('index_trend')],
     ['市值/GDP',src('mktcap_gdp')],
     ['美股指数',src('us_index_trend')],
+    ['黄金',src('gold')],
+    ['美债10Y',src('us10y')],
   ];
   if(items.every(([,v])=>!v))return;   // 全是静态占位时保留首屏文案
   el.textContent=items.map(([k,v])=>k+'：'+(v||'无数据')).join('｜');
@@ -975,7 +1043,7 @@ function getStatic(){
   // marginSlopeZ 由 renderMarginChart() 从斜率序列动态计算后写入 window._D
   return{
     pe300:12.6,bond10y:1.78,pbRatio:null,pbSeries:[],erpHist:null,iv300:21.2,ivPct:65,
-    mktcapGdp:null,usIndexTrend:null,
+    mktcapGdp:null,usIndexTrend:null,gold:null,us10y:null,
     marginBal:15820,marginChg:0,marginSlopeZ:null,turnoverPct:50,
     limitUp:0,limitDown:0,hs300:3800,
     sfData:[],impulse:[],impLabels:[],
@@ -1078,6 +1146,14 @@ async function fetchAll(force){
   // 纯预构建字段（第 16 段）；美股交易日与 A 股不同，日期以卡片自身标注为准。
   const usIndexTrend=P('us_index_trend')||null;
   if(usIndexTrend)useMeta('us_index_trend',PM('us_index_trend'));
+
+  // ── 黄金 / 美国10年期国债（跨市场参照，纯预构建：第 18、17 段）────
+  // 两个都是日频预构建字段、无实时接口。日历不同：黄金跟 A 股（中国节假日休市）、
+  // 美债跟美股（美国节假日休市），所以数据日期以卡片自身标注为准，不强行对齐。
+  const goldW=P('gold')||null;
+  if(goldW)useMeta('gold',PM('gold'));
+  const us10yW=P('us10y')||null;
+  if(us10yW)useMeta('us10y',PM('us10y'));
 
   // ── 3. 两融余额 & 斜率序列 ────────────────────────────────
   let marginBalNow = marginBal || st.marginBal;
@@ -1322,6 +1398,7 @@ async function fetchAll(force){
     indexTrend,
     mktcapGdp,
     usIndexTrend,
+    gold:goldW, us10y:us10yW,
     hs300:hs300Now,
     marginBal:marginBalNow, marginChg:marginChgNow,
     marginSlopeSeries, marginSliceLabels,
@@ -1414,6 +1491,97 @@ function renderBondTrendChart(cur,d){
     {label:'MA5',data:data.map((_,i)=>i>=4?+(data.slice(i-4,i+1).reduce((a,b)=>a+b,0)/5).toFixed(3):null),borderColor:'rgba(249,115,22,.6)',borderWidth:1.8,borderDash:[4,3],pointRadius:0,fill:false,tension:.3},
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
     scales:{x:{ticks:{font:{size:11},color:'#334155',maxTicksLimit:8},grid:{color:'rgba(0,0,0,.04)'}},y:{ticks:{font:{size:11},color:'#334155',callback:v=>v.toFixed(2)+'%'},grid:{color:'rgba(0,0,0,.04)'},min:minV,max:maxV}}}});
+}
+
+/* ═══ 跨市场走势卡（黄金 / 美债共用一套渲染）═══
+   数据来自 arisk_data.json 的 gold / us10y（update_arisk_data.py 第 18 / 17 段）：
+   {latest, hist:[{d,v}], chg?, chg_pct?}
+   两张卡结构完全一致，只有标题、单位与配色语义不同，故合为一个函数，避免两份重复代码。 */
+const _trendCharts={};
+const TREND_CFG={
+  // pctMode: 日涨跌 / 周变化 / 区间变化一律用「相对涨跌幅(%)」，不显示绝对价差（仅黄金卡启用）。
+  // axisUnit: y 轴刻度用的短单位——「美元/盎司」写在刻度上太长会挤掉半张图。
+  gold:{key:'gold',name:'XAU/USD',unit:' 美元/盎司',axisUnit:'$/oz',dp:2,pctMode:true,
+    bigId:'gold-big',chgId:'gold-chg',subId:'gold-sub',
+    w1Id:'gold-w1',ma5Id:'gold-ma5',rangeId:'gold-range',canvasId:'c-gold'},
+  us10y:{key:'us10y',name:'美国10Y',unit:'%',dp:2,
+    bigId:'us10y-big',chgId:'us10y-chg',subId:'us10y-sub',
+    w1Id:'us10y-w1',ma5Id:'us10y-ma5',extraId:'us10y-spread',canvasId:'c-us10y',
+    // 中美10年利差＝中国10Y − 美国10Y。倒挂越深＝人民币资产相对吸引力越弱、汇率压力越大。
+    // 只作一行文字参考，不画线（与「10Y 国债」卡互为对照）。
+    extraFn:(cur,bondVal,set)=>{
+      if(typeof bondVal!=='number'||isNaN(bondVal)){set('us10y-spread','--');return;}
+      const sp=+(bondVal-cur).toFixed(2);
+      set('us10y-spread',(sp>0?'+':'')+sp.toFixed(2)+'pp');
+    }},
+};
+// m（该字段的 source/date/is_estimate 元信息）已不再需要——数据日期与估算标记统一由
+// 右上角徽标（.vbadge[data-meta]）承载，卡内不再重复展示。
+function renderTrendCard(cfg,w,bondVal){
+  if(!cfg)return;
+  // 调用方传的是 P(k) 已解包的 value；这里再兼容一层包装对象，避免两种写法踩坑。
+  const v=isWrapped(w)?w.value:w;
+  // color 语义：字符串＝设色；null＝**清除**行内色（复位为默认）；undefined＝不动
+  const set=(id,txt,color)=>{const e=$(id);if(!e)return;e.textContent=txt;
+    if(color===null)e.style.color='';
+    else if(color!==undefined)e.style.color=color;};
+  const kill=()=>{const c=_trendCharts[cfg.key];if(c){try{c.destroy();}catch(e){}delete _trendCharts[cfg.key];}};
+  const hist=(v&&Array.isArray(v.hist))?v.hist:[];
+  if(hist.length<6){
+    // 大数字与各项涨跌平时都按方向着色，无数据时须显式清除，否则会残留上一次的颜色
+    set(cfg.bigId,'--',null);
+    [cfg.chgId,cfg.w1Id,cfg.ma5Id,cfg.rangeId,cfg.extraId].forEach(id=>{if(id)set(id,'',null);});
+    set(cfg.subId,'暂无数据（等待下次抓数）');
+    kill();return;
+  }
+  const labels=hist.map(p=>p.d),data=hist.map(p=>Number(p.v));
+  const cur=data[data.length-1],prev=data[data.length-2];
+  const d1=+(cur-prev).toFixed(cfg.dp);
+  const w1=+(cur-data[Math.max(0,data.length-6)]).toFixed(cfg.dp);
+  const rng=+(cur-data[0]).toFixed(cfg.dp);
+  const ma5=data.slice(-5).reduce((a,b)=>a+b,0)/5;
+  // 全站配色约定：红涨绿跌。此处"涨"＝价格上行 / 利率上行（美债沿用同页「10Y 国债」的规则）
+  const C_UP='#dc2626',C_DN='#0a7c52';
+  const col=x=>x>0?C_UP:(x<0?C_DN:'var(--muted)');
+  // 两种口径：pctMode 只显示相对涨跌幅(%)；否则显示绝对价差 + 单位（美债沿用后者，债市看 pp 更直观）
+  const abs=x=>x==null?'--':(x>0?'+':'')+x.toFixed(cfg.dp)+cfg.unit;
+  const pctOf=(a,b)=>(b?(a/b-1)*100:null);
+  const pct=x=>x==null?'--':(x>0?'+':'')+x.toFixed(2)+'%';
+  // 当前值与当日涨跌**同色**（与「主要指数」卡的 .idx-px 一致）：绿红只由 d1 的方向决定。
+  // 黄金＝红涨绿跌；美债沿用同页「10Y 国债」语义＝红为利率上行（对 A 股是估值压力）。
+  set(cfg.bigId,cur.toFixed(cfg.dp)+cfg.unit,col(d1));
+  set(cfg.chgId,cfg.pctMode?pct(pctOf(cur,prev)):abs(d1),col(d1));
+  // 副行给「样本区间长度」。MA5 在图下那行已有，不在这里重复；数据日期由右上角徽标承载。
+  set(cfg.subId,'近 '+hist.length+' 个交易日');
+  set(cfg.w1Id,cfg.pctMode?pct(pctOf(cur,data[Math.max(0,data.length-6)])):abs(w1),col(w1));
+  set(cfg.ma5Id,ma5.toFixed(cfg.dp)+cfg.unit);
+  if(cfg.rangeId){
+    const p=data[0]?((cur/data[0]-1)*100):null;
+    set(cfg.rangeId,cfg.pctMode?pct(p)
+      :abs(rng)+(p==null?'':'（'+(p>0?'+':'')+p.toFixed(2)+'%）'),col(rng));
+  }
+  if(cfg.extraId&&cfg.extraFn)cfg.extraFn(cur,bondVal,set);
+  const el=$(cfg.canvasId);if(!el)return;
+  kill();
+  const ma=data.map((_,i)=>i>=4?+(data.slice(i-4,i+1).reduce((a,b)=>a+b,0)/5).toFixed(cfg.dp):null);
+  const minV=Math.min(...data),maxV=Math.max(...data),pad=(maxV-minV)*0.15||0.01;
+  _trendCharts[cfg.key]=new Chart(el,{type:'line',data:{labels,datasets:[
+    {label:cfg.name,data,borderColor:rng>=0?C_UP:C_DN,borderWidth:2,
+     pointRadius:data.map((_,i)=>i===data.length-1?4:0),
+     pointBackgroundColor:rng>=0?C_UP:C_DN,fill:false,tension:.2},
+    {label:'MA5',data:ma,borderColor:'rgba(148,163,184,.9)',borderWidth:1.5,
+     borderDash:[4,3],pointRadius:0,fill:false,tension:.2},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{
+      if(c.datasetIndex===1)return 'MA5 '+Number(c.parsed.y).toFixed(cfg.dp)+cfg.unit;
+      const p=hist[c.dataIndex];
+      return (p?p.d+'　':'')+cfg.name+' '+Number(c.parsed.y).toFixed(cfg.dp)+cfg.unit;
+    }}}},
+    scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#334155',maxTicksLimit:10,autoSkip:true}},
+      y:{grid:{color:'rgba(0,0,0,.05)'},border:{display:false},
+        ticks:{font:{size:10},color:'#334155',maxTicksLimit:5,callback:x=>Number(x).toFixed(cfg.dp)+(cfg.axisUnit||cfg.unit)},
+        min:+(minV-pad).toFixed(cfg.dp+1),max:+(maxV+pad).toFixed(cfg.dp+1)}}}});
 }
 
 function renderIV(iv,ivPct,ivSrc){
@@ -1941,27 +2109,60 @@ function renderPbChart(series){
 
 /* ═══ A股总市值 / GDP（巴菲特指标）═══
    数据来自 arisk_data.json 的 mktcap_gdp（update_arisk_data.py 第 15 段）：
-   {ratio,month,mktcap_yi,gdp_ttm_yi,gdp_quarter,pct_all,pct_10y,mean_all,mean_10y,
-    lo_all,hi_all,hist_n,hist_from,months[],ratios[],mktcaps[],gdps[]} */
+   月度口径：{ratio,month,mktcap_yi,gdp_ttm_yi,gdp_quarter,pct_all,pct_10y,mean_all,
+             mean_10y,lo_all,hi_all,hist_n,hist_from,months[],ratios[],mktcaps[],gdps[]}
+   日线口径：{cur_date,cur_ratio,cur_cap_wy,cur_gdp_wy,cur_chg_pp,cur_chg_cap_wy,
+             cur_chg_cap_pct,cur_pct_all,cur_pct_10y,
+             daily_dates[],daily_ratios[],daily_caps[],daily_gdps[]}
+   顶部「最新交易日」取日线口径；cur_* 缺失（旧载荷/日线抓取失败）时回退月度并如实标注。 */
 function renderMktcapGdp(v){
   if(!v)return;
   const set=(id,txt)=>{const e=$(id);if(e)e.textContent=txt;};
-  const asof=$('mg-asof');
-  if(asof)asof.textContent='数据月份 '+(v.month||'--')+' · 市值月度 / 分母 GDP 至 '+(v.gdp_quarter||'--');
+  // ★ 教训（2026-09-30）：顶部原先固定取月度序列末行（月末市价总值，次月中旬才发布），
+  //   而走势图早就换成日线 → 顶部长期停在 8 月、图已走到 9/29，看起来就是「总市值没跟着趋势更新」。
+  //   两处必须同一口径：顶部＝最新交易日。分位样本仍是月度全历史（分位只有月度频率才有完整可比样本）。
+  const hasCur=v.cur_ratio!=null;
+  const curRatio=hasCur?v.cur_ratio:v.ratio;
+  const curCapWy=hasCur?v.cur_cap_wy:(v.mktcap_yi==null?null:v.mktcap_yi/1e4);
+  const curGdpWy=hasCur?v.cur_gdp_wy:(v.gdp_ttm_yi==null?null:v.gdp_ttm_yi/1e4);
+  const pctAll=hasCur?v.cur_pct_all:v.pct_all;
+  const pct10=hasCur?v.cur_pct_10y:v.pct_10y;
+  // 数据日期已由右上角徽标承载，卡内不再重复。这里只负责大数字的「口径标签」：
+  // 日线可用＝最新交易日；日线不可用（抓取失败）→ 显式降级，避免月末值被当成当日值。
+  const mgLabel=$('mg-label');
+  if(mgLabel)mgLabel.textContent = hasCur ? '最新交易日' : '月末口径（日线不可用）';
   const ratioEl=$('mg-ratio');
-  set('mg-ratio', v.ratio==null?'--':Number(v.ratio).toFixed(2)+'%');
-  if(ratioEl&&v.ratio!=null){
+  set('mg-ratio', curRatio==null?'--':Number(curRatio).toFixed(2)+'%');
+  if(ratioEl&&curRatio!=null){
     // 分位越高＝相对实体经济越贵，用风险色提示（与项目「绿=好」的指标语义一致）
-    ratioEl.style.color = v.pct_all==null ? 'var(--text)'
-      : v.pct_all>=80 ? 'var(--danger)' : v.pct_all<=20 ? 'var(--ok)' : 'var(--text)';
+    ratioEl.style.color = pctAll==null ? 'var(--text)'
+      : pctAll>=80 ? 'var(--danger)' : pctAll<=20 ? 'var(--ok)' : 'var(--text)';
   }
-  set('mg-pctall', v.pct_all==null?'--':v.pct_all+'%');
+  // 日环比（较前一交易日）：红涨绿跌，与全站配色约定一致
+  const chgEl=$('mg-chg');
+  if(chgEl){
+    if(hasCur&&v.cur_chg_pp!=null){
+      const c=v.cur_chg_pp;
+      chgEl.textContent=(c>0?'+':'')+Number(c).toFixed(2)+'pp';
+      chgEl.style.color=c>0?'var(--danger)':(c<0?'var(--ok)':'var(--muted)');
+    }else chgEl.textContent='';
+  }
+  set('mg-pctall', pctAll==null?'--':pctAll+'%');
   set('mg-histn', v.hist_n==null?'--':v.hist_n);
   set('mg-histfrom', v.hist_from||'--');
-  set('mg-pct10', v.pct_10y==null?'--':v.pct_10y+'%');
+  set('mg-pct10', pct10==null?'--':pct10+'%');
   set('mg-mean10', v.mean_10y==null?'--':Number(v.mean_10y).toFixed(2)+'%');
-  set('mg-cap', v.mktcap_yi==null?'--':(v.mktcap_yi/1e4).toFixed(1)+' 万亿');
-  set('mg-gdp', v.gdp_ttm_yi==null?'--':(v.gdp_ttm_yi/1e4).toFixed(1)+' 万亿');
+  set('mg-cap', curCapWy==null?'--':Number(curCapWy).toFixed(1)+' 万亿');
+  const capChgEl=$('mg-cap-chg');
+  if(capChgEl){
+    if(hasCur&&v.cur_chg_cap_wy!=null){
+      const c=v.cur_chg_cap_wy,p=v.cur_chg_cap_pct;
+      capChgEl.textContent='（'+(c>0?'+':'')+Number(c).toFixed(2)+' 万亿'
+        +(p==null?'':'，'+(p>0?'+':'')+Number(p).toFixed(2)+'%')+'）';
+      capChgEl.style.color=c>0?'var(--danger)':(c<0?'var(--ok)':'var(--muted)');
+    }else capChgEl.textContent='';
+  }
+  set('mg-gdp', curGdpWy==null?'--':Number(curGdpWy).toFixed(1)+' 万亿');
   set('mg-gdpq', v.gdp_quarter?'（'+v.gdp_quarter+'）':'');
   set('mg-range', (v.lo_all==null?'--':Number(v.lo_all).toFixed(1)+'%')+' ~ '+(v.hi_all==null?'--':Number(v.hi_all).toFixed(1)+'%'));
   set('mg-meanall', v.mean_all==null?'--':Number(v.mean_all).toFixed(2)+'%');
@@ -2043,15 +2244,12 @@ const idxNum=(v,dp)=>v==null||isNaN(v)?'--':Number(v).toLocaleString('en-US',{mi
 /* 同一套渲染同时服务 A 股指数卡与美股指数卡：用 opt 传入容器/canvas 前缀，避免两份重复代码 */
 function renderIndexTrend(it,opt){
   opt=opt||{};
-  const gridId=opt.gridId||'idx-grid',asofId=opt.asofId||'idx-asof',pfx=opt.prefix||'c-idx-';
+  const gridId=opt.gridId||'idx-grid',pfx=opt.prefix||'c-idx-';
   const grid=$(gridId);if(!grid)return;
-  const asof=$(asofId);
   if(!it||!Array.isArray(it.items)||!it.items.length){
     grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:16px;font-size:12.5px">暂无指数数据（等待下次抓数）</div>';
-    if(asof)asof.textContent='';
     return;
   }
-  if(asof)asof.textContent='数据日期 '+(it.as_of||'--')+' · 近 '+(it.days||60)+' 个交易日';
   grid.innerHTML=it.items.map(x=>`
     <div class="idx-tile">
       <div class="idx-hd">
@@ -2080,13 +2278,19 @@ function drawIndexChart(x,pfx){
   const closes=(x.closes||[]).filter(v=>v!=null);
   if(closes.length<3)return;
   const labels=(x.dates||[]).map(dt=>{const p=String(dt).split('-');return parseInt(p[1],10)+'/'+parseInt(p[2],10);});
+  /* ★ 折线数据必须与 labels(＝dates) 等长 —— Chart.js 按索引把 data[i] 配到 labels[i]，
+     长度不齐会整体错位一天（末点真实值被挤出画布、倒数第二天的价顶到末位）。
+     历史 bug（2026-09-30 修）：后端 us_index_trend 的 closes 曾比 dates 多一个「算涨跌用的
+     基准前值」，表现是「卡片数字显示下跌、趋势线最后一段却在涨」。后端已改为等长，
+     这里再按末尾对齐兜一次，防旧缓存或以后新增的段再犯同样的错。 */
+  const lineData=(x.closes||[]).slice(labels.length?-labels.length:0);
   const vols=x.vols||[];
   const col=IDX_COLOR[x.key]||'#ef4444';
   const vmax=Math.max(1,...vols.filter(v=>v!=null))*1.3;
   mkChart(pfx+x.key,{
     data:{labels,datasets:[
       {type:'bar',label:'成交量',data:vols,yAxisID:'y1',backgroundColor:'rgba(96,165,250,.42)',borderWidth:0,order:2},
-      {type:'line',label:'收盘',data:x.closes,yAxisID:'y',borderColor:col,borderWidth:2,pointRadius:0,pointHoverRadius:3,tension:.25,fill:false,order:1},
+      {type:'line',label:'收盘',data:lineData,yAxisID:'y',borderColor:col,borderWidth:2,pointRadius:0,pointHoverRadius:3,tension:.25,fill:false,order:1},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},
       interaction:{mode:'index',intersect:false},
@@ -2219,8 +2423,11 @@ function render(d){
   requestAnimationFrame(()=>{
     renderVolChart(d);renderBondTrendChart(bd,d);renderCreditChart(d);renderMarginChart(d);
     renderIndexTrend(d.indexTrend);
-    renderIndexTrend(d.usIndexTrend,{gridId:'usidx-grid',asofId:'usidx-asof',prefix:'c-usidx-'});
+    renderIndexTrend(d.usIndexTrend,{gridId:'usidx-grid',prefix:'c-usidx-'});
     renderMktcapGdp(d.mktcapGdp);
+    // 黄金 / 美债两张走势卡共用一套渲染（结构相同，仅标题、单位与配色语义不同）
+    renderTrendCard(TREND_CFG.gold, d.gold, null);
+    renderTrendCard(TREND_CFG.us10y, d.us10y, typeof bd==='number'?bd:null);
     renderDecisionModel(d);
   });
 }
