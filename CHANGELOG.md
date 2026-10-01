@@ -1,5 +1,49 @@
 # CHANGELOG
 
+## 2026-10-01 · 补抓 09-30 申万 / ETF；修 recalc_section 不刷新 generated_at 导致「补算成功但页面不更新」
+
+### 起因
+
+用户报：「申万一级指数和 ETF 数据怎么都没更新呢？」
+
+### 一、根因：09-30 22:11 那次全量抓取 DNS 全线失败（不是数据源滞后）
+
+`arisk_update.log` 末尾显示该次 **18 段全部失败**，报错清一色是：
+
+```
+Failed to resolve 'finance.sina.com.cn' / 'datacenter.eastmoney.com' / 'stock2.finance.sina.com.cn'
+[Errno 8] nodename nor servname provided, or not known
+```
+
+6.6 秒跑完（快速失败、无重试等待），随后 `⚠ 以下字段本次抓取失败，复用旧值` 把全部 18 段列了一遍。
+
+10-01 11:32 复测：上述三个域名 DNS 解析全部正常，`finance.sina.com.cn` 直连与走代理均 HTTP 200 → 判定为**临时性 DNS 抖动**，非数据源故障、也非看板故障。
+
+> 对照：`index_trend` / `mktcap_gdp` / `gold` 停在 09-30（09-30 白天那次成功抓取留下的），而 `sector_live` / `etf_categories` 停在 09-29。
+
+### 二、补抓结果
+
+`NO_PROXY='*' ./venv/bin/python recalc_section.py sector_live etf_categories`
+
+| 段 | 结果 |
+|---|---|
+| `sector_live` | 31/31 行业，最强 煤炭 11.55%，date **2026-09-30** |
+| `etf_categories` | now=**2026-09-30** vs 2026-07-03，17 类 / 920 只（东财现价失败 → 自动降级新浪，属既有兜底） |
+
+两段 `stale` 均由 `true` 变回 `false`。
+
+### 三、真 bug：`recalc_section.py` 不刷新 `generated_at`，补算结果在浏览器里看不见
+
+- `arisk_monitor_local.html` 的 `loadC()` 拿 `generated_at` 当缓存失效戳：`if(expectGen!==undefined&&…&&r.gen!==expectGen)return null`（`expectGen` 来自 `/prebuilt`）。
+- 而 `recalc_section.py` 原设计**故意不改** `generated_at`，注释还写着「前端缓存靠 `CKEY`/`SCHEMA` 失效，不依赖这个时间戳」——**这句是错的**。`CKEY`/`SCHEMA` 只管缓存对象**字段结构**变没变；数据内容变了它们是不动的。
+- 后果：补算确实写进了 JSON，但浏览器侧 gen 未变 → 缓存命中 → **页面继续显示旧值**，表现为「脚本说成功、页面上没变」。
+- 修法：写回前刷新 `generated_at` / `generated_date`。页面全页无 `generated_at` 引用，它只是数据版本号、不是给用户看的时间，故不构成虚报；新鲜度仍以各字段的 `date` / `stale` 为准。
+- 同步更正 `README.md`「只重算某一段」小节里同一处错误说法。
+
+### 四、遗留隐患（未实施，待确认）
+
+全量抓取遇瞬时 DNS / 网络故障时，会**静默把 18 段全部退化成旧值**（只在日志里留一行汇总）。若无人翻日志，看板会长期停在旧数据上而不自知。可选改法：① 在 `run_section` 里加一次短间隔重试（DNS 抖动通常是瞬时的）；② 失败段数超阈值时在页面顶部弹降级横幅。**本次未动，等用户拍板。**
+
 ## 2026-09-30 · 走势卡「当前值」补涨跌配色；清理页头与卡内重复的日期行；精简卡内脚注
 
 ### 起因

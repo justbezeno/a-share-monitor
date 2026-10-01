@@ -10,8 +10,13 @@
 · 逻辑与全量更新**完全一致** —— 直接 import update_arisk_data 里对应的 fetch_*，不另写一份，
   所以不会出现「补算结果与全量结果不一致」。
 · 某段重算失败（value 为空）时跳过该段；全部失败则整体不写回，不会写坏文件。
-· 不改 generated_at：其余段仍是上一次全量更新的数据，把生成时间改成本刻属于虚报。
-  前端缓存靠 CKEY/SCHEMA 版本戳失效，不依赖这个时间戳。
+· 写回时**会更新 generated_at / generated_date**（2026-10-01 修正）：
+  前端缓存的失效戳**正是 generated_at**，不是 CKEY/SCHEMA —— 见 arisk_monitor_local.html
+  的 loadC：`if(expectGen!==undefined&&…&&r.gen!==expectGen)return null`，expectGen 取自
+  /prebuilt 返回的 generated_at。CKEY/SCHEMA 只管「缓存对象字段结构」变没变，
+  数据内容变了它们是不动的。**所以补算后不更新这个戳，会出现「脚本报成功、页面上还是旧值」**。
+  页面本身不引用这个时间戳（全页无 generated_at 引用），它只是数据版本号、不是给用户看的
+  时间，更新它不构成虚报；各字段自己仍带真实 date / stale，新鲜度以那里的为准。
 · mktcap_gdp 依赖 JSON 里已有的 turnover 序列（日线分子），不能用于首次生成。
 """
 import importlib.util, json, os, sys
@@ -70,8 +75,16 @@ if not changed:
     print("✗ 没有任何段重算成功，未写回")
     sys.exit(1)
 
+# ★ 必须更新 generated_at：它是前端缓存的失效戳（见文件头说明）。
+#   少了这一步，补算结果写进了 JSON，浏览器却命中旧缓存继续显示旧数据。
+_now = datetime.now()
+_old_gen = data.get('generated_at')
+data['generated_at'] = _now.strftime('%Y-%m-%dT%H:%M:%S')
+data['generated_date'] = _now.strftime('%Y-%m-%d')
+
 tmp = OUT + '.tmp'
 with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(data, f, ensure_ascii=False, indent=2)
 os.replace(tmp, OUT)
-print(f"✓ 已写回 {OUT}：{changed}（{datetime.now().strftime('%H:%M:%S')}）")
+print(f"✓ 已写回 {OUT}：{changed}（{_now.strftime('%H:%M:%S')}）")
+print(f"  generated_at: {_old_gen} → {data['generated_at']}（前端据此丢弃旧缓存）")

@@ -148,7 +148,7 @@ bash start.sh
 ./venv/bin/python recalc_section.py mktcap_gdp      # 依赖 JSON 里已有的 turnover，不能用于首次生成
 ```
 
-它**直接 import `update_arisk_data` 里对应的 `fetch_*`**，逻辑与全量完全一致，不会出现「补算结果和全量结果不一致」；某段失败则跳过、全部失败则不写回。注意它**不改 `generated_at`**：其余段仍是上一次全量的数据，把生成时间改成本刻属于虚报（前端缓存靠 `CKEY`/`SCHEMA` 失效，不依赖该时间戳）。
+它**直接 import `update_arisk_data` 里对应的 `fetch_*`**，逻辑与全量完全一致，不会出现「补算结果和全量结果不一致」；某段失败则跳过、全部失败则不写回。写回时**会刷新 `generated_at` / `generated_date`** —— 前端缓存的失效戳就是它（见上文「缓存版本戳」表的 `gen` 行），**不刷新就会出现「脚本报成功、页面上还是旧值」**；页面本身不展示这个时间戳（它只是数据版本号），各字段自带 `date` / `stale` 表示真实新鲜度。
 
 ## 每日自动更新
 
